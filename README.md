@@ -2,10 +2,21 @@
 
 CLI tool to manage OpenClaw model configurations.
 
+## Prerequisite
+Install and Setup `openclaw` firstly, refer to https://github.com/openclaw/openclaw
+```
+# setup openclaw
+openclaw setup 
+
+# or configure it interactively 
+
+openclaw configure
+```
+
 ## Installation
 
 ```bash
-npm install
+npm i -g clawd-models
 ```
 
 ## Usage
