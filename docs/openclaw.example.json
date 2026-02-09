@@ -1,0 +1,164 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.2.1",
+    "lastTouchedAt": "2026-02-09T04:36:41.216Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-02-04T04:45:03.494Z",
+    "lastRunVersion": "2026.2.1",
+    "lastRunCommand": "configure",
+    "lastRunMode": "remote"
+  },
+  "auth": {
+    "profiles": {
+      "minimax:default": {
+        "provider": "minimax",
+        "mode": "api_key"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "qiniu": {
+        "baseUrl": "https://api.qnaigc.com/v1",
+        "apiKey": "sk-b870e3bd48248a8eec6*****",
+        "auth": "api-key",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "xiaomi/mimo-v2-flash",
+            "name": "Mi M2.1",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 15,
+              "output": 60,
+              "cacheRead": 2,
+              "cacheWrite": 10
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "minimax/minimax-m2.1",
+            "name": "Qiniu Minimax M2.1",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 15,
+              "output": 60,
+              "cacheRead": 2,
+              "cacheWrite": 10
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "meituan/longcat-flash-lite",
+            "name": "Qiniu Pony Alpha",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 15,
+              "output": 60,
+              "cacheRead": 2,
+              "cacheWrite": 10
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      },
+      "minimax": {
+        "baseUrl": "https://api.minimax.io/anthropic",
+        "api": "anthropic-messages",
+        "auth": "api-key",
+        "models": [
+          {
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax M2.1",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 15,
+              "output": 60,
+              "cacheRead": 2,
+              "cacheWrite": 10
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "qiniu/xiaomi/mimo-v2-flash"
+      },
+      "models": {
+        "qiniu/xiaomi/mimo-v2-flash": {},
+        "qiniu/minimax/minimax-m2.1": {},
+        "qiniu/meituan/longcat-flash-lite": {}
+      },
+      "workspace": "/home/teric/dev/bot/openclaw/workspace",
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    },
+    "list": [
+      {
+        "id": "main"
+      },
+      {
+        "id": "abc",
+        "name": "abc",
+        "model": "qiniu/minimax/minimax-m2.1",
+        "workspace": "/home/teric/dev/bot/openclaw/workspace-abc",
+        "agentDir": "/home/teric/.openclaw/agents/abc/agent",
+        "model": "qiniu/xiaomi/mimo-v2-flash"
+      },
+      {
+        "id": "pony",
+        "name": "pony",
+        "model": "qiniu/meituan/longcat-flash-lite",
+        "workspace": "/home/teric/.openclaw/workspace-pony",
+        "agentDir": "/home/teric/.openclaw/agents/pony/agent"
+      }
+    ]
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "auth": {
+      "mode": "token",
+      "token": "5ce63aeb6791a87a261de88503d88ce58c54372bf77c6160"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  }
+}
