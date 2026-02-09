@@ -1,6 +1,6 @@
 {
   "name": "clawd-models",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CLI tool to manage OpenClaw model configurations",
   "main": "bin/clawd-models.js",
   "bin": {

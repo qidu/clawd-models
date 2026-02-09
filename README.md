@@ -40,7 +40,7 @@ clawd-models <command>
 ### Provider Management
 | Command | Description |
 |---------|-------------|
-| `providers:add -n <name> -u <url>` | Add a new model provider |
+| `providers:add -n <name> -u <url> [-k <api-key>]` | Add a new model provider |
 | `providers:remove -n <name>` | Remove a model provider |
 | `providers:list` | List all configured providers |
 

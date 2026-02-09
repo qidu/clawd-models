@@ -12,7 +12,8 @@ const CURRENT_VERSION = '2026.2.1';
 program
   .name('clawd-models')
   .description('CLI tool to manage OpenClaw model configurations')
-  .version('1.0.0');
+  .version('1.0.2')
+  .showHelpAfterError();
 
 // ============ Core Commands ============
 
@@ -111,9 +112,9 @@ program
   .description('Add a new model provider')
   .requiredOption('-n, --name <name>', 'Provider name (e.g., qiniu, minimax)')
   .requiredOption('-u, --base-url <url>', 'Base API URL')
+  .option('-k, --api-key <key>', 'API Key for the provider endpoint')
   .option('--api <api-type>', 'API type (e.g., openai-completions, anthropic-messages)', 'openai-completions')
   .option('--auth <auth-type>', 'Auth method (e.g., api-key, bearer)', 'api-key')
-  .option('--api-key <key>', 'API key for the provider')
   .action((options) => {
     const config = loadConfig();
     config.models.providers = config.models.providers || {};
