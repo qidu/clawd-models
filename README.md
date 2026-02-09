@@ -22,7 +22,8 @@ npm i -g clawd-models
 ## Usage
 
 ```bash
-node bin/clawd-models.js <command>
+clawd-models <command>
+# clawd-models help
 ```
 
 ## Commands
