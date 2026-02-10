@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="380" fill="#fafafa"/>
+
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">Setup Models for OpenClaw with clawd-models</text>
+
+  <!-- Step 1: Install OpenClaw -->
+  <rect x="20" y="55" width="150" height="90" rx="8" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="95" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#1976d2">1. Install &amp;</text>
+  <text x="95" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#1976d2">Init OpenClaw</text>
+  <text x="95" y="118" text-anchor="middle" font-size="9" fill="#555">npm i -g openclaw@latest</text>
+  <text x="95" y="128" text-anchor="middle" font-size="9" fill="#555">openclaw setup</text>
+
+  <!-- Arrow 1 -->
+  <path d="M175 90 L210 90" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Step 2: Install clawd-models -->
+  <rect x="220" y="55" width="150" height="70" rx="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" filter="url(#shadow)"/>
+  <text x="295" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#388e3c">2. Install</text>
+  <text x="295" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#388e3c">clawd-models</text>
+  <text x="295" y="118" text-anchor="middle" font-size="9" fill="#555">npm i -g clawd-models</text>
+
+  <!-- Arrow 2 -->
+  <path d="M375 90 L410 90" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Step 3: Add Providers -->
+  <rect x="420" y="55" width="150" height="70" rx="8" fill="#fff3e0" stroke="#f57c00" stroke-width="2" filter="url(#shadow)"/>
+  <text x="495" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#f57c00">3. Add Providers</text>
+  <text x="495" y="100" text-anchor="middle" font-size="10" fill="#555">providers:add</text>
+  <text x="495" y="115" text-anchor="middle" font-size="9" fill="#555">-n &lt;name&gt; -u &lt;url&gt;</text>
+
+  <!-- Arrow 3 -->
+  <path d="M575 90 L610 90" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Step 4: Add Models -->
+  <rect x="620" y="55" width="150" height="70" rx="8" fill="#fff3e0" stroke="#f57c00" stroke-width="2" filter="url(#shadow)"/>
+  <text x="695" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#f57c00">4. Add Models</text>
+  <text x="695" y="100" text-anchor="middle" font-size="10" fill="#555">models:add</text>
+  <text x="695" y="115" text-anchor="middle" font-size="9" fill="#555">-p &lt;provider&gt; -i &lt;model-id&gt;</text>
+
+  <!-- Row 2: Test & loop -->
+  <rect x="100" y="180" width="160" height="60" rx="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" filter="url(#shadow)"/>
+  <text x="180" y="205" text-anchor="middle" font-size="13" font-weight="bold" fill="#388e3c">5. Test Models</text>
+  <text x="180" y="225" text-anchor="middle" font-size="9" fill="#555">models:test [--bot &lt;name&gt;]</text>
+
+  <!-- Arrow from Add Models to Test -->
+  <path d="M695 125 L695 160 L210 160 L210 180" stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- Alternative: Direct OpenClaw Commands -->
+  <rect x="550" y="180" width="220" height="90" rx="8" fill="#fafafa" stroke="#999" stroke-width="1" stroke-dasharray="5,5"/>
+  <text x="660" y="200" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Native Commands</text>
+  <text x="660" y="212" text-anchor="middle" font-size="9" fill="#555">openclaw models list</text>
+  <text x="660" y="224" text-anchor="middle" font-size="9" fill="#555">openclaw models set &lt;model-id&gt;</text>
+  <text x="660" y="236" text-anchor="middle" font-size="9" fill="#555">openclaw agent --agent main -m "hi, there"</text>
+
+  <!-- Legend -->
+  <rect x="20" y="280" width="100" height="80" rx="6" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="70" y="298" text-anchor="middle" font-size="10" font-weight="bold" fill="#333">Legend</text>
+  <circle cx="35" cy="320" r="5" fill="#1976d2"/>
+  <text x="48" y="324" font-size="9" fill="#555" text-anchor="start">OpenClaw</text>
+  <circle cx="35" cy="338" r="5" fill="#f57c00"/>
+  <text x="48" y="342" font-size="9" fill="#555" text-anchor="start">Config</text>
+  <circle cx="35" cy="354" r="5" fill="#388e3c"/>
+  <text x="48" y="358" font-size="9" fill="#555" text-anchor="start">Test</text>
+
+  <!-- Default Bot Priority -->
+  <rect x="350" y="190" width="140" height="50" rx="6" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+  <text x="420" y="210" text-anchor="middle" font-size="10" font-weight="bold" fill="#333">Default Bot</text>
+  <text x="420" y="228" text-anchor="middle" font-size="9" fill="#555">openclaw → clawdbot → moltbot</text>
+
+  <!-- Dashed line from Step 5 to Default Bot -->
+  <path d="M260 210 L350 210" stroke="#777" stroke-width="1" stroke-dasharray="4,4" fill="none"/>
+
+  <!-- Dashed line from Default Bot to Step 3 -->
+  <path d="M440 190 L440 150 L495 150 L495 125" stroke="#777" stroke-width="1" stroke-dasharray="4,4" fill="none" marker-end="url(#arrowhead)"/>
+</svg>

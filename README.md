@@ -2,6 +2,10 @@
 
 CLI tool to manage OpenClaw model configurations.
 
+## Quick Start Flow
+
+![Setup Flow](docs/setup-flow.svg)
+
 ## Prerequisite
 Install and Setup `openclaw` firstly, refer to https://github.com/openclaw/openclaw
 ```
@@ -22,9 +26,25 @@ npm i -g clawd-models
 ## Usage
 
 ```bash
-clawd-models <command>
+clawd-models <command> [--bot <openclaw|clawdbot|moltbot>]
 # clawd-models help
 ```
+
+**Global Options:**
+- `--bot <bot-id>` - Target bot (openclaw, clawdbot, moltbot). Also saves as default for future commands.
+- `--clear-bot` - Clear the default bot setting
+
+**Bot Priority (when --bot not specified):**
+1. Saved preference (if set via previous `--bot` use)
+2. Auto-detect: openclaw → clawdbot → moltbot
+
+**Config Locations:**
+- OpenClaw: `~/.openclaw/openclaw.json`
+- ClawdBot: `~/.clawdbot/clawdbot.json`
+- MoltBot: `~/.moltbot/moltbot.json`
+- Preferred bot: `~/.clawd-models/bot`
+
+**Default Bot Priority:** `openclaw` → `clawdbot` → `moltbot` (auto-selected if not specified via `--bot`)
 
 ## Commands
 
@@ -50,7 +70,8 @@ Should add a provider firstly, then add a model (refer to next section).
 |---------|-------------|
 | `models:add -p <provider> -i <model-id> --name <name>` | Add a model to a provider |
 | `models:remove -p <provider> -i <model-id>` | Remove a model from a provider |
-| `model:list [--provider <name>]` | List all configured models |
+| `models:list [--provider <name>]` | List all configured models |
+| `models:test` | Test the default model configuration by sending a test message |
 
 Use `agents:set-default` in next section or refer to `openclaw models set` to set a default model for 'main' and all agents.
 
@@ -81,3 +102,7 @@ Refer to `openclaw gateway status` for more.
 ## Configuration Location
 
 `~/.openclaw/openclaw.json`
+or
+`~/.clawdbot/clawdbot.json`
+or
+`~/.moltbot/moltbot.json`
