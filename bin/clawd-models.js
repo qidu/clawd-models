@@ -198,7 +198,7 @@ function getBotFromArgs() {
 program
   .name('clawd-models')
   .description('CLI tool to manage OpenClaw model configurations')
-  .version('1.0.6')
+  .version('1.0.7')
   .showHelpAfterError()
   .option('--bot <bot-id>', 'Target bot: openclaw, clawdbot, moltbot (also sets as default)')
   .option('--clear-bot', 'Clear the default bot setting');
