@@ -7,7 +7,7 @@ CLI tool to manage OpenClaw model configurations.
 ![Setup Flow](docs/setup-flow.svg)
 
 ## Prerequisite
-Install and Setup `openclaw` firstly, refer to https://github.com/openclaw/openclaw
+Install and Setup `openclaw` firstly
 ```
 # setup openclaw
 openclaw setup 
@@ -16,12 +16,14 @@ openclaw setup
 
 openclaw configure
 ```
+Refer to https://github.com/openclaw/openclaw
 
 ## Installation
 
 ```bash
 npm i -g clawd-models
 ```
+Refer to https://github.com/openclaw/openclaw
 
 ## Usage
 
