@@ -4,7 +4,7 @@ CLI tool to manage OpenClaw model configurations.
 
 ## Quick Start Flow
 
-![Setup Flow](docs/setup-flow.svg)
+![Setup Flow](https://raw.githubusercontent.com/qidu/clawd-models/refs/heads/main/docs/setup-flow.svg)
 
 ## Prerequisite
 Install and Setup `openclaw` firstly
@@ -23,7 +23,7 @@ Refer to https://github.com/openclaw/openclaw
 ```bash
 npm i -g clawd-models
 ```
-Refer to https://github.com/openclaw/openclaw
+Refer to https://github.com/qidu/clawd-models
 
 ## Usage
 

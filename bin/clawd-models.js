@@ -9,7 +9,7 @@ const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json
 const CLAWD_MODELS_DIR = path.join(os.homedir(), '.clawd-models');
 const CLAWD_MODELS_BOT_FILE = path.join(CLAWD_MODELS_DIR, 'bot.json');
 
-const CURRENT_VERSION = '2026.2.1';
+const CURRENT_VERSION = '2026.2.10';
 
 // Supported bot configurations
 const BOT_CONFIGS = [
@@ -198,7 +198,7 @@ function getBotFromArgs() {
 program
   .name('clawd-models')
   .description('CLI tool to manage OpenClaw model configurations')
-  .version('1.0.5')
+  .version('1.0.6')
   .showHelpAfterError()
   .option('--bot <bot-id>', 'Target bot: openclaw, clawdbot, moltbot (also sets as default)')
   .option('--clear-bot', 'Clear the default bot setting');
