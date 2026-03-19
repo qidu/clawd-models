@@ -1,13 +1,14 @@
 {
   "name": "clawd-models",
-  "version": "1.0.7",
-  "description": "CLI tool to manage OpenClaw model configurations",
+  "version": "1.1.0",
+  "description": "TUI (Text User Interface) tool to manage OpenClaw model configurations",
   "main": "bin/clawd-models.js",
   "bin": {
     "clawd-models": "bin/clawd-models.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node bin/clawd-models.js"
   },
   "keywords": [
     "openclaw",
@@ -15,6 +16,7 @@
     "third-party",
     "providers",
     "configuration",
+    "tui",
     "cli"
   ],
   "engines": {
@@ -23,9 +25,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "commander": "^12.0.0",
+    "axios": "^1.0.0",
+    "boxen": "^7.0.0",
+    "chalk": "^5.0.0",
+    "cli-table3": "^0.6.0",
     "fs-extra": "^11.2.0",
-    "os": "^0.1.2",
-    "path": "^0.12.7"
+    "inquirer": "^13.3.2",
+    "ora": "^7.0.0"
   }
 }
