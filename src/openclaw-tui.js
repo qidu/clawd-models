@@ -121,6 +121,7 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
       model: model.id,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: model.maxTokens || 128,
+      stream: false,
       tools: [{ type: 'function', function: sampleTool }],
       tool_choice: { type: 'function', function: { name: 'say_hi' } },
     };
@@ -277,7 +278,7 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
     };
   };
 
-  return runAnthropic();
+  return apiSchema === 'openai-completions' ? runOpenAI() : runAnthropic();
 }
 
 async function startOpenClawTUI(options = {}) {
@@ -429,7 +430,8 @@ async function startOpenClawTUI(options = {}) {
         for (const model of models) {
           const modelSelected = selected?.kind === 'model' && selected.providerName === providerName && selected.modelId === model.id;
           const mark = modelSelected ? green('>') : dim('·');
-          lines.push(`  ${dim('│')} ${mark} ${clip(truncateToWidth, model.id || 'model', 24)} ${dim(formatModelSummary(model))}`);
+          const testMark = model.testStatus === 200 ? ` ${green('●')}` : '';
+          lines.push(`  ${dim('│')} ${mark} ${model.id || 'model'}${testMark} ${dim(formatModelSummary(model))}`);
         }
       }
       lines.push('');
@@ -481,7 +483,7 @@ async function startOpenClawTUI(options = {}) {
       });
       this.tui.start();
       await this.refresh();
-      this.refreshTimer = setInterval(() => { void this.refresh(); }, 1500);
+      this.refreshTimer = setInterval(() => { void this.refresh(); }, 15000);
       return () => this.stop();
     }
     requestRender() { this.tui.requestRender(); }
@@ -489,7 +491,6 @@ async function startOpenClawTUI(options = {}) {
       try {
         this.config = ensureConfigShape(loadConfig(configPath));
         this.view.setConfig(this.config);
-        this.view.setMessage('Ready');
         this.tui.requestRender();
       } catch (error) {
         this.view.setMessage(error.message);
@@ -541,50 +542,57 @@ async function startOpenClawTUI(options = {}) {
       });
     }
     openProviderEditor(providerName) {
-      const provider = ensureProvider(this.config, providerName);
-      const items = [
-        { value: 'apiSchema', label: 'apiSchema', description: provider.apiSchema || 'anthropic-messages' },
-        { value: 'baseUrl', label: 'baseUrl', description: provider.baseUrl || '(empty)' },
-        { value: 'apiKey', label: 'apiKey', description: provider.apiKey ? '(set)' : '(empty)' },
-      ];
-      this.openSelect(`Provider ${providerName}`, 'Choose a field', items, (field) => {
-        if (field === 'apiSchema') {
-          this.openSelect('Select apiSchema', 'Press Enter to choose and save it for this provider', [
-            { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
-            { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
-          ], async (value) => {
-            provider.apiSchema = value;
-            await this.saveAndRefresh(`updated ${providerName} apiSchema`);
-          });
-          return;
-        }
-        if (field === 'baseUrl') {
-          this.openPrompt('Edit baseUrl', 'Enter baseUrl', provider.baseUrl || '', async (value) => {
-            provider.baseUrl = value.trim();
-            await this.saveAndRefresh(`updated ${providerName} baseUrl`);
-          });
-          return;
-        }
-        if (field === 'apiKey') {
-          this.openPrompt('Edit apiKey', 'Enter apiKey', provider.apiKey || '', async (value) => {
-            provider.apiKey = value.trim();
-            await this.saveAndRefresh(`updated ${providerName} apiKey`);
-          });
-          return;
-        }
-      });
+      const renderProviderEditor = () => {
+        const provider = ensureProvider(this.config, providerName);
+        const items = [
+          { value: 'apiSchema', label: 'apiSchema', description: provider.apiSchema || 'anthropic-messages' },
+          { value: 'baseUrl', label: 'baseUrl', description: provider.baseUrl || '(empty)' },
+          { value: 'apiKey', label: 'apiKey', description: provider.apiKey ? '(set)' : '(empty)' },
+        ];
+        this.openSelect(`Provider ${providerName}`, 'Choose a field', items, (field) => {
+          const currentProvider = ensureProvider(this.config, providerName);
+          if (field === 'apiSchema') {
+            this.openSelect('Select apiSchema', 'Press Enter to choose and save it for this provider', [
+              { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
+              { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
+            ], async (value) => {
+              currentProvider.apiSchema = value;
+              saveConfig(configPath, this.config);
+              this.view.setMessage(`saved ${providerName} apiSchema = ${value}`);
+              this.requestRender();
+              setTimeout(renderProviderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'baseUrl') {
+            this.openPrompt('Edit baseUrl', 'Enter baseUrl', currentProvider.baseUrl || '', async (value) => {
+              currentProvider.baseUrl = value.trim();
+              await this.saveAndRefresh(`updated ${providerName} baseUrl`);
+            });
+            return;
+          }
+          if (field === 'apiKey') {
+            this.openPrompt('Edit apiKey', 'Enter apiKey', currentProvider.apiKey || '', async (value) => {
+              currentProvider.apiKey = value.trim();
+              await this.saveAndRefresh(`updated ${providerName} apiKey`);
+            });
+            return;
+          }
+        });
+      };
+      renderProviderEditor();
     }
     openModelEditor(providerName, modelId) {
       const provider = ensureProvider(this.config, providerName);
       const model = findModel(provider, modelId);
       if (!model) throw new Error(`Model "${modelId}" not found in provider "${providerName}"`);
       const items = [
+        { value: 'test', label: 'test model', description: 'Run sample prompt + tool call' },
         { value: 'id', label: 'id', description: model.id || '(empty)' },
         { value: 'name', label: 'name', description: model.name || '(empty)' },
         { value: 'contextWindow', label: 'contextWindow', description: model.contextWindow !== undefined ? String(model.contextWindow) : '(empty)' },
         { value: 'maxTokens', label: 'maxTokens', description: model.maxTokens !== undefined ? String(model.maxTokens) : '(empty)' },
         { value: 'reasoning', label: 'reasoning', description: model.reasoning === true ? 'true' : model.reasoning === false ? 'false' : '(empty)' },
-        { value: 'test', label: 'test model', description: 'Run sample prompt + tool call' },
       ];
       this.openSelect(`Model ${providerName}/${modelId}`, 'Choose a field', items, (field) => {
         if (field === 'id') {
@@ -762,20 +770,42 @@ async function startOpenClawTUI(options = {}) {
       try {
         const result = await testModelDirect(this.config, providerName, modelId, prompt);
         const toolCount = Array.isArray(result.toolCalls) ? result.toolCalls.length : 0;
+        const hasUsage = Boolean(result.finalResponse && typeof result.finalResponse === 'object' && result.finalResponse.usage);
         const colorStatus = (status) => (status === 200 ? green(String(status)) : String(status));
+        const usage = result.finalResponse?.usage;
+        const responseDetail = result.apiSchema === 'anthropic-messages'
+          ? {
+              stop_reason: result.finalResponse?.stop_reason,
+              usage,
+            }
+          : {
+              finish_reason: result.finalResponse?.choices?.[0]?.finish_reason,
+              usage,
+            };
+        if (hasUsage && result.finalStatus === 200) {
+          this.markModelTestSuccess(providerName, modelId);
+        }
         const details = [
-          `tested ${providerName}/${modelId}`,
-          `schema=${result.apiSchema}`,
-          `endpoint=${result.endpoint}`,
-          `first=${colorStatus(result.firstStatus)} final=${colorStatus(result.finalStatus)}`,
+          `${result.endpoint}`,
+          `${colorStatus(hasUsage ? 200 : result.finalStatus)}`,
+          ...(usage ? [`${green(JSON.stringify(usage))}`] : []),
           `tool_calls=${toolCount}`,
         ];
-        if (result.finalResponse) details.push(`response=${JSON.stringify(result.finalResponse)}`);
+        if (responseDetail.usage || responseDetail.stop_reason !== undefined || responseDetail.finish_reason !== undefined) {
+          details.push(`${green(JSON.stringify(responseDetail))}`);
+        }
         this.view.setMessage(details.join('\n'));
       } catch (error) {
         this.view.setMessage(error.message);
       }
       this.requestRender();
+    }
+    markModelTestSuccess(providerName, modelId) {
+      const provider = this.config.models?.providers?.[providerName];
+      if (!provider) return;
+      const model = providerModels(provider).find((item) => item.id === modelId);
+      if (!model) return;
+      model.testStatus = 200;
     }
     async saveAndRefresh(message) {
       saveConfig(configPath, this.config);
