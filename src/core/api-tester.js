@@ -1,3 +1,11 @@
+const fs = require('fs');
+
+const DEBUG_LOG_PATH = '/tmp/clawd-models.log';
+
+function writeDebugLog(...parts) {
+  fs.appendFileSync(DEBUG_LOG_PATH, `${parts.map((part) => (typeof part === 'string' ? part : JSON.stringify(part, null, 2))).join(' ')}\n`);
+}
+
 class ApiTester {
   constructor(configManager, providerManager, modelManager) {
     this.configManager = configManager;
@@ -119,32 +127,48 @@ class ApiTester {
    * @returns {Object} Response data
    */
   async makeRequest(endpoint, headers, body) {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body
-    });
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body
+      });
 
-    const status = response.status;
-    const responseHeaders = {};
-    for (const [key, value] of response.headers.entries()) {
-      responseHeaders[key] = value;
+      const status = response.status;
+      const responseHeaders = {};
+      for (const [key, value] of response.headers.entries()) {
+        responseHeaders[key] = value;
+      }
+
+      const contentType = response.headers.get('content-type');
+      let responseBody;
+
+      if (contentType && contentType.includes('application/json')) {
+        responseBody = await response.json();
+      } else {
+        responseBody = await response.text();
+      }
+
+      if (!response.ok) {
+        writeDebugLog('[api-tester] request failed');
+        writeDebugLog('[api-tester] endpoint:', endpoint);
+        writeDebugLog('[api-tester] request body:', body);
+        writeDebugLog('[api-tester] status:', status);
+        writeDebugLog('[api-tester] response body:', responseBody);
+      }
+
+      return {
+        status,
+        headers: responseHeaders,
+        body: responseBody
+      };
+    } catch (error) {
+      writeDebugLog('[api-tester] request error');
+      writeDebugLog('[api-tester] endpoint:', endpoint);
+      writeDebugLog('[api-tester] request body:', body);
+      writeDebugLog('[api-tester] error:', error?.stack || error?.message || String(error));
+      throw error;
     }
-
-    const contentType = response.headers.get('content-type');
-    let responseBody;
-
-    if (contentType && contentType.includes('application/json')) {
-      responseBody = await response.json();
-    } else {
-      responseBody = await response.text();
-    }
-
-    return {
-      status,
-      headers: responseHeaders,
-      body: responseBody
-    };
   }
 
   /**

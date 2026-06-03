@@ -1,5 +1,11 @@
+const fs = require('fs');
 const { DEFAULT_CONFIG_PATH, ensureConfigShape, getAvailableModelIds, getDefaultModelIds, loadConfig, removeModelReferences, renameModelReferences, saveConfig, setDefaultModelChoice, setDefaultModels, setProvider } = require('./openclaw-config');
 const { ApiTester } = require('./core');
+
+const DEBUG_LOG_PATH = '/tmp/clawd-models.log';
+function writeDebugLog(...parts) {
+  fs.appendFileSync(DEBUG_LOG_PATH, `${parts.map((part) => (typeof part === 'string' ? part : JSON.stringify(part, null, 2))).join(' ')}\n`);
+}
 
 let piTuiPromise = null;
 async function loadPiTui() {
@@ -118,8 +124,25 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
       tools: [{ type: 'function', function: sampleTool }],
       tool_choice: { type: 'function', function: { name: 'say_hi' } },
     };
+    writeDebugLog('[testModelDirect] first request', {
+      providerName,
+      modelId,
+      endpoint,
+      headers: { ...headers, Authorization: headers.Authorization ? '********************************' : undefined },
+      body: firstBody,
+    });
     const firstResponse = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(firstBody) });
     const firstJson = await firstResponse.json().catch(async () => ({ raw: await firstResponse.text() }));
+    writeDebugLog('[testModelDirect] first response body', {
+      status: firstResponse.status,
+      body: firstJson,
+    });
+    if (!firstResponse.ok) {
+      writeDebugLog('[testModelDirect] first response error', {
+        status: firstResponse.status,
+        body: firstJson,
+      });
+    }
     const message = firstJson?.choices?.[0]?.message;
     const toolCalls = message?.tool_calls || [];
 
@@ -172,24 +195,56 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
     const firstBody = {
       model: model.id,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }],
+        },
+      ],
       max_tokens: model.maxTokens || 128,
+      stream: false,
+      system: [{ type: 'text', text: 'You are a helpful assistant that uses tools when asked.', cache_control: { type: 'ephemeral' } }],
       tools: [{ name: sampleTool.name, description: sampleTool.description, input_schema: sampleTool.parameters }],
       tool_choice: { type: 'tool', name: sampleTool.name },
     };
+    writeDebugLog('[testModelDirect] first request', {
+      providerName,
+      modelId,
+      endpoint,
+      headers: { ...headers, Authorization: headers.Authorization ? '********************************' : undefined },
+      body: firstBody,
+    });
     const firstResponse = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(firstBody) });
     const firstJson = await firstResponse.json().catch(async () => ({ raw: await firstResponse.text() }));
+    writeDebugLog('[testModelDirect] first response body', {
+      status: firstResponse.status,
+      body: firstJson,
+    });
+    if (!firstResponse.ok) {
+      writeDebugLog('[testModelDirect] first response error', {
+        status: firstResponse.status,
+        body: firstJson,
+      });
+    }
     const toolUseBlocks = Array.isArray(firstJson?.content) ? firstJson.content.filter((block) => block && block.type === 'tool_use') : [];
 
     if (toolUseBlocks.length > 0) {
       const secondBody = {
         model: model.id,
         messages: [
-          { role: 'user', content: prompt },
+          {
+            role: 'user',
+            content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }],
+          },
           { role: 'assistant', content: toolUseBlocks },
-          { role: 'user', content: toolUseBlocks.map((block) => ({ type: 'tool_result', tool_use_id: block.id, content: 'hi' })) },
+          {
+            role: 'user',
+            content: toolUseBlocks.map((block) => ({ type: 'tool_result', tool_use_id: block.id, content: 'hi' })),
+          },
         ],
         max_tokens: model.maxTokens || 128,
+        stream: false,
+        system: [{ type: 'text', text: 'You are a helpful assistant that uses tools when asked.', cache_control: { type: 'ephemeral' } }],
         tools: [{ name: sampleTool.name, description: sampleTool.description, input_schema: sampleTool.parameters }],
       };
       const secondResponse = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(secondBody) });
@@ -222,7 +277,7 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
     };
   };
 
-  return apiSchema === 'openai-completions' ? runOpenAI() : runAnthropic();
+  return runAnthropic();
 }
 
 async function startOpenClawTUI(options = {}) {
@@ -268,7 +323,7 @@ async function startOpenClawTUI(options = {}) {
       this.list.onCancel = onCancel;
     }
     handleInput(data) {
-      if (this.onKey && this.onKey(data, this.list.getSelectedItem())) return;
+      if (this.onKey && this.onKey(data, this.list.getSelectedItem()) === true) return;
       this.list.handleInput(data);
     }
     invalidate() { this.list.invalidate(); }
@@ -335,6 +390,10 @@ async function startOpenClawTUI(options = {}) {
       const selected = this.selectCurrent();
       if (selected && (matchesKey(data, 'enter') || matchesKey(data, 'return') || matchesKey(data, 'e'))) {
         this.app.openEditor(selected);
+        return;
+      }
+      if (selected && matchesKey(data, 't') && selected.kind === 'model') {
+        this.app.runModelTest(selected.providerName, selected.modelId);
       }
     }
     render(width) {
@@ -349,12 +408,13 @@ async function startOpenClawTUI(options = {}) {
       }
       const selections = this.selections();
       const selected = selections[this.selectionIndex] || null;
-      lines.push(bold('Agent defaults'));
+      lines.push(bold('Agents Defaults'));
       const defaults = this.config.agents?.defaults || {};
-      lines.push(`  models: ${formatList(getDefaultModelIds(this.config)) || dim('(empty)')}`);
+      lines.push(`  models: ${dim(formatList(getDefaultModelIds(this.config))) || dim('(empty)')}`);
       lines.push(`  primary: ${defaults.model?.primary || dim('(empty)')}`);
       const fallback = Array.isArray(defaults.model?.fallback) ? defaults.model.fallback : [];
       lines.push(`  fallback: ${formatList(fallback) || dim('(empty)')}`);
+      lines.push(dim('  D to define agents.defaults'));
       lines.push('');
       lines.push(bold('Providers'));
       const names = providerNames(this.config);
@@ -374,7 +434,7 @@ async function startOpenClawTUI(options = {}) {
       }
       lines.push('');
       lines.push(bold('Help'));
-      lines.push(dim('  Enter/e edit  a add provider  m add model  D agent defaults  t test model  r reload  ↑↓/j/k move  q/Ctrl+C quit'));
+      lines.push(dim('  Enter/E edit  A add provider  M add model T test model  R reload  ↑↓/j/k move  q/Ctrl+C quit'));
       lines.push(this.message ? yellow(this.message) : dim('Ready'));
       return lines.map((line) => clip(truncateToWidth, line, width));
     }
@@ -448,21 +508,16 @@ async function startOpenClawTUI(options = {}) {
     openAgentDefaultsEditor() {
       ensureDefaults(this.config);
       const items = [
-        { value: 'models', label: 'models', description: formatList(getDefaultModelIds(this.config)) || '(empty)' },
         { value: 'primary', label: 'primary', description: this.config.agents.defaults.model?.primary || '(empty)' },
         { value: 'fallback', label: 'fallback', description: formatList(Array.isArray(this.config.agents.defaults.model?.fallback) ? this.config.agents.defaults.model.fallback : []) || '(empty)' },
       ];
-      this.openSelect('Agent defaults', 'Choose a field', items, (field) => {
-        if (field === 'models') {
-          this.openDefaultsModelsEditor();
-          return;
-        }
+      this.openSelect('Agent defaults', 'Choose primary or fallback; use P/B on the model picker', items, (field) => {
         if (field === 'primary') {
           this.openDefaultChoiceEditor('primary');
           return;
         }
         if (field === 'fallback') {
-          this.openDefaultFallbackEditor();
+          this.openDefaultChoiceEditor('fallback');
         }
       });
     }
@@ -488,11 +543,21 @@ async function startOpenClawTUI(options = {}) {
     openProviderEditor(providerName) {
       const provider = ensureProvider(this.config, providerName);
       const items = [
+        { value: 'apiSchema', label: 'apiSchema', description: provider.apiSchema || 'anthropic-messages' },
         { value: 'baseUrl', label: 'baseUrl', description: provider.baseUrl || '(empty)' },
         { value: 'apiKey', label: 'apiKey', description: provider.apiKey ? '(set)' : '(empty)' },
-        { value: 'apiSchema', label: 'apiSchema', description: provider.apiSchema || 'anthropic-messages' },
       ];
       this.openSelect(`Provider ${providerName}`, 'Choose a field', items, (field) => {
+        if (field === 'apiSchema') {
+          this.openSelect('Select apiSchema', 'Press Enter to choose and save it for this provider', [
+            { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
+            { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
+          ], async (value) => {
+            provider.apiSchema = value;
+            await this.saveAndRefresh(`updated ${providerName} apiSchema`);
+          });
+          return;
+        }
         if (field === 'baseUrl') {
           this.openPrompt('Edit baseUrl', 'Enter baseUrl', provider.baseUrl || '', async (value) => {
             provider.baseUrl = value.trim();
@@ -506,15 +571,6 @@ async function startOpenClawTUI(options = {}) {
             await this.saveAndRefresh(`updated ${providerName} apiKey`);
           });
           return;
-        }
-        if (field === 'apiSchema') {
-          this.openSelect('Select apiSchema', 'Choose apiSchema', [
-            { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
-            { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
-          ], async (value) => {
-            provider.apiSchema = value;
-            await this.saveAndRefresh(`updated ${providerName} apiSchema`);
-          });
         }
       });
     }
@@ -609,7 +665,15 @@ async function startOpenClawTUI(options = {}) {
       this.openSelect(
         `Select agents.defaults.model.${kind}`,
         'Choose model id',
-        choices.map((modelId) => ({ value: modelId, label: modelId, description: modelId === current ? 'current' : '' })),
+        choices.map((modelId) => {
+          const [providerName, ...modelParts] = String(modelId).split('/');
+          const modelName = modelParts.join('/');
+          return {
+            value: modelId,
+            label: modelName ? `${providerName} / ${modelName}` : modelId,
+            description: modelId === current ? 'current' : '',
+          };
+        }),
         async (value) => {
           setDefaultModelChoice(this.config, kind, value);
           await this.saveAndRefresh(`updated agents.defaults.model.${kind}`);
@@ -620,6 +684,9 @@ async function startOpenClawTUI(options = {}) {
 
           if (matchesKey(data, 'P')) {
             this.config.agents.defaults.model.primary = modelId;
+            this.config.agents.defaults.model.fallback = Array.isArray(this.config.agents.defaults.model.fallback)
+              ? this.config.agents.defaults.model.fallback.filter((item) => item !== modelId)
+              : [];
             await this.saveAndRefresh('updated agents.defaults.model.primary');
             return true;
           }
@@ -627,11 +694,15 @@ async function startOpenClawTUI(options = {}) {
             const fallback = Array.isArray(this.config.agents.defaults.model.fallback) ? this.config.agents.defaults.model.fallback : [];
             if (!fallback.includes(modelId)) fallback.push(modelId);
             this.config.agents.defaults.model.fallback = fallback;
+            if (this.config.agents.defaults.model.primary === modelId) delete this.config.agents.defaults.model.primary;
             await this.saveAndRefresh('updated agents.defaults.model.fallback');
             return true;
           }
           if (matchesKey(data, 'O')) {
             setDefaultModelChoice(this.config, kind, '');
+            this.config.agents.defaults.model.fallback = Array.isArray(this.config.agents.defaults.model.fallback)
+              ? this.config.agents.defaults.model.fallback.filter((item) => item !== modelId)
+              : [];
             await this.saveAndRefresh(`updated agents.defaults.model.${kind}`);
             return true;
           }
@@ -652,7 +723,10 @@ async function startOpenClawTUI(options = {}) {
       this.closeOverlay();
       const overlay = new ListOverlay(title, subtitle, items, (item) => {
         this.closeOverlay();
-        void onSelect(String(item.value));
+        void Promise.resolve(onSelect(String(item.value))).catch(async (error) => {
+          this.view.setMessage(error.message);
+          await this.refresh();
+        });
       }, () => {
         this.closeOverlay();
         this.view.setMessage('cancelled');
@@ -688,7 +762,16 @@ async function startOpenClawTUI(options = {}) {
       try {
         const result = await testModelDirect(this.config, providerName, modelId, prompt);
         const toolCount = Array.isArray(result.toolCalls) ? result.toolCalls.length : 0;
-        this.view.setMessage(`tested ${providerName}/${modelId} ${result.finalStatus} tool_calls=${toolCount}`);
+        const colorStatus = (status) => (status === 200 ? green(String(status)) : String(status));
+        const details = [
+          `tested ${providerName}/${modelId}`,
+          `schema=${result.apiSchema}`,
+          `endpoint=${result.endpoint}`,
+          `first=${colorStatus(result.firstStatus)} final=${colorStatus(result.finalStatus)}`,
+          `tool_calls=${toolCount}`,
+        ];
+        if (result.finalResponse) details.push(`response=${JSON.stringify(result.finalResponse)}`);
+        this.view.setMessage(details.join('\n'));
       } catch (error) {
         this.view.setMessage(error.message);
       }
@@ -697,7 +780,6 @@ async function startOpenClawTUI(options = {}) {
     async saveAndRefresh(message) {
       saveConfig(configPath, this.config);
       this.view.setMessage(message);
-      await this.refresh();
       this.requestRender();
     }
     stop() {
