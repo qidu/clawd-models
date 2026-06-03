@@ -1,53 +1,69 @@
 #!/usr/bin/env node
 
-// Main entry point for clawd-models TUI
-// This replaces the old CLI with a new Text User Interface
+const { DEFAULT_CONFIG_PATH, ensureConfigShape, getDefaultModelIds, loadConfig, providerEntries, providerModels, resolveConfigPath } = require('../src/openclaw-config');
+const { startOpenClawTUI, testModelDirect } = require('../src/openclaw-tui');
 
-const TUIController = require('../src/tui/index');
-const { ConfigManager, ProviderManager, ModelManager, AgentManager, ApiTester } = require('../src/core');
+function printHelp() {
+  console.log(`
+clawd-models - OpenClaw Model Configuration Tool
+
+Usage:
+  clawd-models              # Run interactive TUI
+  clawd-models --tui        # Run interactive TUI
+  clawd-models --test       # Test primary model with a sample prompt + tool call
+  clawd-models --list-providers   # List configured providers
+  clawd-models --list-models      # List configured models
+  clawd-models --view-config      # View full configuration
+
+Options:
+  -t, --test           Test API connection
+  -p, --list-providers List providers
+  -m, --list-models    List models
+  -v, --view-config    View configuration
+  -h, --help           Show this help
+
+Note: Interactive TUI requires a real terminal.
+`);
+}
+
+function getConfigPath() {
+  return resolveConfigPath(process.env.OPENCLAW_CONFIG_PATH || DEFAULT_CONFIG_PATH);
+}
+
+function loadOpenClaw() {
+  return ensureConfigShape(loadConfig(getConfigPath()));
+}
 
 async function runTest() {
-  const configManager = new ConfigManager();
-  const providerManager = new ProviderManager(configManager);
-  const modelManager = new ModelManager(configManager);
-  const agentManager = new AgentManager(configManager, modelManager);
-  const apiTester = new ApiTester(configManager, providerManager, modelManager);
-
-  const defaultModel = agentManager.getDefaultModel();
-
-  if (!defaultModel) {
-    console.error('Error: No default model configured.');
-    console.log('Run "clawd-models" in interactive mode to configure a default model.');
+  const config = loadOpenClaw();
+  const primary = config.agents?.defaults?.model?.primary;
+  if (!primary) {
+    console.error('Error: No primary model configured.');
     process.exit(1);
   }
 
-  console.log(`Testing default model: ${defaultModel}\n`);
+  const [providerName, ...modelParts] = String(primary).split('/');
+  const modelId = modelParts.join('/');
+  if (!providerName || !modelId) {
+    console.error('Error: Primary model must be in provider/model-id format.');
+    process.exit(1);
+  }
+
+  console.log(`Testing primary model: ${primary}\n`);
 
   try {
-    const result = await apiTester.testModel(defaultModel);
-
-    if (result.success) {
-      console.log('✅ Test Successful!');
-      console.log(`Model: ${result.modelId}`);
-      console.log(`Provider: ${result.provider}`);
-      console.log(`Endpoint: ${result.endpoint}`);
-      console.log(`Status: ${result.response.status}`);
-
-      if (result.response.body) {
-        console.log('\n📝 Response:');
-        console.log(JSON.stringify(result.response.body, null, 2));
-      }
-      process.exit(0);
-    } else {
-      console.log('❌ Test Failed!');
-      console.log(`Error: ${result.error}`);
-      if (result.response?.status === 404) {
-        const advice = apiTester.getTroubleshootingAdvice(result);
-        if (advice) {
-          console.log(advice);
-        }
-      }
-      process.exit(1);
+    const result = await testModelDirect(config, providerName, modelId, 'say hi');
+    console.log('✅ Test complete');
+    console.log(`Model: ${result.modelId}`);
+    console.log(`Provider: ${result.providerName}`);
+    console.log(`Schema: ${result.apiSchema}`);
+    console.log(`Endpoint: ${result.endpoint}`);
+    console.log(`First status: ${result.firstStatus}`);
+    console.log(`Final status: ${result.finalStatus}`);
+    console.log(`Tool calls: ${Array.isArray(result.toolCalls) ? result.toolCalls.length : 0}`);
+    if (result.finalResponse) {
+      console.log('\nResponse:');
+      console.log(JSON.stringify(result.finalResponse, null, 2));
     }
   } catch (error) {
     console.error('Error:', error.message);
@@ -56,30 +72,34 @@ async function runTest() {
 }
 
 async function runListProviders() {
-  const configManager = new ConfigManager();
-  const providerManager = new ProviderManager(configManager);
-  const providers = providerManager.listProviders();
+  const config = loadOpenClaw();
+  const entries = providerEntries(config);
 
-  if (providers.length === 0) {
+  if (entries.length === 0) {
     console.log('No providers configured.');
     return;
   }
 
   console.log('Configured Providers:\n');
-  providers.forEach(p => {
-    console.log(`- ${p.name}`);
-    console.log(`  Base URL: ${p.baseUrl}`);
-    console.log(`  API: ${p.api}`);
-    console.log(`  Auth: ${p.auth}`);
-    console.log(`  Models: ${p.models?.length || 0}`);
+  for (const [name, provider] of entries) {
+    console.log(`- ${name}`);
+    console.log(`  Base URL: ${provider.baseUrl || ''}`);
+    console.log(`  API Schema: ${provider.apiSchema || ''}`);
+    console.log(`  API Key: ${provider.apiKey ? 'set' : 'empty'}`);
+    console.log(`  Models: ${providerModels(provider).length}`);
     console.log();
-  });
+  }
 }
 
 async function runListModels() {
-  const configManager = new ConfigManager();
-  const modelManager = new ModelManager(configManager);
-  const models = modelManager.listModels();
+  const config = loadOpenClaw();
+  const entries = providerEntries(config);
+  const models = [];
+  for (const [providerName, provider] of entries) {
+    for (const model of providerModels(provider)) {
+      models.push({ providerName, model });
+    }
+  }
 
   if (models.length === 0) {
     console.log('No models configured.');
@@ -87,17 +107,18 @@ async function runListModels() {
   }
 
   console.log('Configured Models:\n');
-  models.forEach(m => {
-    console.log(`- ${m.provider}/${m.id}`);
-    console.log(`  Name: ${m.name}`);
-    console.log(`  Context: ${m.contextWindow?.toLocaleString()} tokens`);
+  for (const { providerName, model } of models) {
+    console.log(`- ${providerName}/${model.id}`);
+    console.log(`  Name: ${model.name || ''}`);
+    console.log(`  Context: ${model.contextWindow ?? ''}`);
+    console.log(`  Max Tokens: ${model.maxTokens ?? ''}`);
+    console.log(`  Reasoning: ${model.reasoning === true ? 'true' : model.reasoning === false ? 'false' : ''}`);
     console.log();
-  });
+  }
 }
 
 async function runViewConfig() {
-  const configManager = new ConfigManager();
-  const config = configManager.loadConfig();
+  const config = loadOpenClaw();
   console.log(JSON.stringify(config, null, 2));
 }
 
@@ -105,63 +126,32 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  // If no arguments, run TUI
-  if (!command) {
-    try {
-      const tui = new TUIController();
-      await tui.run();
-    } catch (error) {
-      console.error('Fatal error:', error.message);
-      process.exit(1);
-    }
+  if (!command || command === '--tui') {
+    await startOpenClawTUI({ configPath: process.env.OPENCLAW_CONFIG_PATH });
     return;
   }
 
-  // Handle CLI commands
   switch (command) {
     case '--test':
     case '-t':
       await runTest();
       break;
-
     case '--list-providers':
     case '-p':
       await runListProviders();
       break;
-
     case '--list-models':
     case '-m':
       await runListModels();
       break;
-
     case '--view-config':
     case '-v':
       await runViewConfig();
       break;
-
     case '--help':
     case '-h':
-      console.log(`
-clawd-models - OpenClaw Model Configuration Tool
-
-Usage:
-  clawd-models              # Run interactive TUI
-  clawd-models --test       # Test default model API connection
-  clawd-models --list-providers   # List configured providers
-  clawd-models --list-models      # List configured models
-  clawd-models --view-config      # View full configuration
-
-Options:
-  -t, --test           Test API connection
-  -p, --list-providers List providers
-  -m, --list-models   List models
-  -v, --view-config   View configuration
-  -h, --help          Show this help
-
-Note: Interactive TUI requires a real terminal.
-`);
+      printHelp();
       break;
-
     default:
       console.error(`Unknown command: ${command}`);
       console.log('Run "clawd-models --help" for usage information.');
@@ -169,17 +159,14 @@ Note: Interactive TUI requires a real terminal.
   }
 }
 
-// Handle Ctrl+C gracefully
 process.on('SIGINT', () => {
   console.log('\n\nExiting clawd-models...');
   process.exit(0);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
-// Run the CLI
 main();
