@@ -31,7 +31,8 @@ function ensureConfigShape(config) {
   next.agents.defaults ??= {};
   next.agents.defaults.models ??= {};
   next.agents.defaults.model ??= {};
-  next.agents.defaults.model.fallback ??= [];
+  next.agents.defaults.model.primary ??= null;
+  next.agents.defaults.model.fallbacks ??= [];
   return next;
 }
 
@@ -90,10 +91,19 @@ function setDefaultModelChoice(config, kind, modelId) {
   config.agents ??= {};
   config.agents.defaults ??= {};
   config.agents.defaults.model ??= {};
-  if (modelId) {
-    config.agents.defaults.model[kind] = modelId;
-  } else {
-    delete config.agents.defaults.model[kind];
+  if (kind === 'primary') {
+    if (modelId) {
+      config.agents.defaults.model.primary = modelId;
+    } else {
+      delete config.agents.defaults.model.primary;
+    }
+  } else if (kind === 'fallback') {
+    if (modelId) {
+      config.agents.defaults.model.fallbacks ??= [];
+      if (!config.agents.defaults.model.fallbacks.includes(modelId)) {
+        config.agents.defaults.model.fallbacks.push(modelId);
+      }
+    }
   }
 }
 
@@ -110,14 +120,8 @@ function renameModelReferences(config, oldId, newId) {
   if (defaults.model?.primary === oldId) {
     defaults.model.primary = newId;
   }
-  if (Array.isArray(defaults.model?.fallback)) {
-    defaults.model.fallback = defaults.model.fallback.map((item) => (item === oldId ? newId : item));
-  } else if (defaults.model?.fallback === oldId) {
-    defaults.model.fallback = newId;
-  }
-  if (defaults.models && Object.prototype.hasOwnProperty.call(defaults.models, oldId)) {
-    delete defaults.models[oldId];
-    defaults.models[newId] = {};
+  if (Array.isArray(defaults.model?.fallbacks)) {
+    defaults.model.fallbacks = defaults.model.fallbacks.map((item) => (item === oldId ? newId : item));
   }
 }
 
@@ -133,13 +137,8 @@ function removeModelReferences(config, modelId) {
   if (defaults.model?.primary === modelId) {
     delete defaults.model.primary;
   }
-  if (Array.isArray(defaults.model?.fallback)) {
-    defaults.model.fallback = defaults.model.fallback.filter((item) => item !== modelId);
-  } else if (defaults.model?.fallback === modelId) {
-    delete defaults.model.fallback;
-  }
-  if (defaults.model?.fallback && typeof defaults.model.fallback === 'string' && defaults.model.fallback === modelId) {
-    delete defaults.model.fallback;
+  if (Array.isArray(defaults.model?.fallbacks)) {
+    defaults.model.fallbacks = defaults.model.fallbacks.filter((item) => item !== modelId);
   }
 }
 

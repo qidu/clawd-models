@@ -35,7 +35,7 @@ function formatList(values) {
   return (values || []).join(', ');
 }
 function fallbackList(config) {
-  const value = config?.agents?.defaults?.model?.fallback;
+  const value = config?.agents?.defaults?.model?.fallbacks;
   if (Array.isArray(value)) return value;
   if (value) return [value];
   return [];
@@ -614,12 +614,12 @@ async function startOpenClawTUI(options = {}) {
       const items = [
         { value: 'models', label: 'models', description: formatList(qualifyModelIds(this.config, getDefaultModelIds(this.config))) || '(empty)' },
         { value: 'primary', label: 'primary', description: qualifyModelId(this.config, this.config.agents.defaults.model?.primary) || '(empty)' },
-        { value: 'fallback', label: 'fallback', description: formatList(qualifyModelIds(this.config, fallbackList(this.config))) || '(empty)' },
+        { value: 'fallbacks', label: 'fallbacks', description: formatList(qualifyModelIds(this.config, fallbackList(this.config))) || '(empty)' },
       ];
       this.openSelect('Agent defaults', `Pick a field; ${kbdItem('Enter', 'to edit')}`, items, (field) => {
         if (field === 'models') return this.openDefaultListEditor('models');
         if (field === 'primary') return this.openDefaultChoiceEditor('primary');
-        if (field === 'fallback') return this.openDefaultListEditor('fallback');
+        if (field === 'fallbacks') return this.openDefaultListEditor('fallbacks');
       });
     }
     openAddProviderPrompt() {
@@ -674,10 +674,10 @@ async function startOpenClawTUI(options = {}) {
       if (typeof defaults.model?.primary === 'string' && defaults.model.primary.startsWith(prefix)) {
         delete defaults.model.primary;
       }
-      if (Array.isArray(defaults.model?.fallback)) {
-        defaults.model.fallback = defaults.model.fallback.filter((id) => !id.startsWith(prefix));
-      } else if (typeof defaults.model?.fallback === 'string' && defaults.model.fallback.startsWith(prefix)) {
-        delete defaults.model.fallback;
+      if (Array.isArray(defaults.model?.fallbacks)) {
+        defaults.model.fallbacks = defaults.model.fallbacks.filter((id) => !id.startsWith(prefix));
+      } else if (typeof defaults.model?.fallbacks === 'string' && defaults.model.fallbacks.startsWith(prefix)) {
+        delete defaults.model.fallbacks;
       }
     }
     removeModelAndCleanup(providerName, modelId) {
@@ -693,10 +693,10 @@ async function startOpenClawTUI(options = {}) {
       if (typeof model.primary === 'string' && !active.has(model.primary)) {
         delete model.primary;
       }
-      if (Array.isArray(model.fallback)) {
-        model.fallback = model.fallback.filter((id) => active.has(id));
-      } else if (typeof model.fallback === 'string' && !active.has(model.fallback)) {
-        delete model.fallback;
+      if (Array.isArray(model.fallbacks)) {
+        model.fallbacks = model.fallbacks.filter((id) => active.has(id));
+      } else if (typeof model.fallbacks === 'string' && !active.has(model.fallbacks)) {
+        delete model.fallbacks;
       }
     }
     openAddModelPrompt(providerName) {
@@ -830,17 +830,12 @@ async function startOpenClawTUI(options = {}) {
     }
     openDefaultChoiceEditor(kind) {
       ensureDefaults(this.config);
-      const current = kind === 'fallback'
-        ? new Set(qualifyModelIds(this.config, fallbackList(this.config)))
-        : new Set([qualifyModelId(this.config, this.config.agents.defaults.model?.[kind] || '')]);
-      const allProviderModels = availableModelList(this.config);
-      const choices = kind === 'fallback' ? allProviderModels : getDefaultModelIds(this.config);
+      const current = new Set([qualifyModelId(this.config, this.config.agents.defaults.model?.[kind] || '')]);
+      const choices = getDefaultModelIds(this.config);
       if (choices.length === 0) {
-        const promptText = kind === 'fallback'
-          ? 'Enter model id'
-          : (getDefaultModelIds(this.config).length === 0
+        const promptText = getDefaultModelIds(this.config).length === 0
               ? 'No active models. Add models first. Enter model id'
-              : 'Enter model id — must be in agents.defaults.models');
+              : 'Enter model id — must be in agents.defaults.models';
         this.openPrompt(`Edit agents.defaults.model.${kind}`, promptText, [...current][0] || '', async (value) => {
           setDefaultModelChoice(this.config, kind, value.trim());
           await this.saveAndRefresh(`updated agents.defaults.model.${kind}`);
@@ -868,24 +863,24 @@ async function startOpenClawTUI(options = {}) {
 
           if (matchesKey(data, 'P')) {
             this.config.agents.defaults.model.primary = modelId;
-            this.config.agents.defaults.model.fallback = Array.isArray(this.config.agents.defaults.model.fallback)
-              ? this.config.agents.defaults.model.fallback.filter((item) => item !== modelId)
+            this.config.agents.defaults.model.fallbacks = Array.isArray(this.config.agents.defaults.model.fallbacks)
+              ? this.config.agents.defaults.model.fallbacks.filter((item) => item !== modelId)
               : [];
             await this.saveAndRefresh('updated agents.defaults.model.primary');
             return true;
           }
           if (matchesKey(data, 'B')) {
-            const fallback = Array.isArray(this.config.agents.defaults.model.fallback) ? this.config.agents.defaults.model.fallback : [];
+            const fallback = Array.isArray(this.config.agents.defaults.model.fallbacks) ? this.config.agents.defaults.model.fallbacks : [];
             if (!fallback.includes(modelId)) fallback.push(modelId);
-            this.config.agents.defaults.model.fallback = fallback;
+            this.config.agents.defaults.model.fallbacks = fallback;
             if (this.config.agents.defaults.model.primary === modelId) delete this.config.agents.defaults.model.primary;
-            await this.saveAndRefresh('updated agents.defaults.model.fallback');
+            await this.saveAndRefresh('updated agents.defaults.model.fallbacks');
             return true;
           }
           if (matchesKey(data, 'O')) {
             setDefaultModelChoice(this.config, kind, '');
-            this.config.agents.defaults.model.fallback = Array.isArray(this.config.agents.defaults.model.fallback)
-              ? this.config.agents.defaults.model.fallback.filter((item) => item !== modelId)
+            this.config.agents.defaults.model.fallbacks = Array.isArray(this.config.agents.defaults.model.fallbacks)
+              ? this.config.agents.defaults.model.fallbacks.filter((item) => item !== modelId)
               : [];
             await this.saveAndRefresh(`updated agents.defaults.model.${kind}`);
             return true;
@@ -897,22 +892,22 @@ async function startOpenClawTUI(options = {}) {
     openDefaultFallbackEditor() {
       ensureDefaults(this.config);
       const current = qualifyModelIds(this.config, fallbackList(this.config));
-      this.openPrompt('Edit agents.defaults.model.fallback', 'Comma-separated fallback model ids (ordered)', formatList(current), async (value) => {
+      this.openPrompt('Edit agents.defaults.model.fallbacks', 'Comma-separated fallback model ids (ordered)', formatList(current), async (value) => {
         const ids = splitList(value).map((id) => qualifyModelId(this.config, id));
-        this.config.agents.defaults.model.fallback = ids;
+        this.config.agents.defaults.model.fallbacks = ids;
         await this.saveAndRefresh('updated agents.defaults.model.fallback');
       });
     }
     openDefaultListEditor(field) {
       ensureDefaults(this.config);
-      const isFallback = field === 'fallback';
+      const isFallback = field === 'fallbacks';
       const initialIds = isFallback ? fallbackList(this.config) : getDefaultModelIds(this.config);
       const allProviderModels = availableModelList(this.config);
       const choices = isFallback
         ? getDefaultModelIds(this.config)
         : allProviderModels;
       if (choices.length === 0) {
-        const title = isFallback ? 'Edit agents.defaults.model.fallback' : 'Edit agents.defaults.models';
+        const title = isFallback ? 'Edit agents.defaults.model.fallbacks' : 'Edit agents.defaults.models';
         const promptText = isFallback
           ? (getDefaultModelIds(this.config).length === 0
               ? 'No active models. Add models first. Comma-separated fallback model ids (ordered)'
@@ -921,8 +916,8 @@ async function startOpenClawTUI(options = {}) {
         this.openPrompt(title, promptText, formatList(initialIds), async (value) => {
           const ids = splitList(value).map((id) => qualifyModelId(this.config, id));
           if (isFallback) {
-            this.config.agents.defaults.model.fallback = ids;
-            await this.saveAndRefresh('updated agents.defaults.model.fallback');
+            this.config.agents.defaults.model.fallbacks = ids;
+            await this.saveAndRefresh('updated agents.defaults.model.fallbacks');
           } else {
             setDefaultModels(this.config, ids);
             await this.saveAndRefresh('updated agents.defaults.models');
@@ -931,8 +926,8 @@ async function startOpenClawTUI(options = {}) {
         return;
       }
       const selected = new Set(qualifyModelIds(this.config, initialIds));
-      const title = isFallback ? 'Select agents.defaults.model.fallback' : 'Select agents.defaults.models';
-      const tag = isFallback ? 'in fallback' : 'in models';
+      const title = isFallback ? 'Select agents.defaults.model.fallbacks' : 'Select agents.defaults.models';
+      const tag = isFallback ? 'in fallbacks' : 'in models';
       const items = choices.map((modelId) => {
         const qualified = qualifyModelId(this.config, modelId);
         return {
@@ -948,8 +943,8 @@ async function startOpenClawTUI(options = {}) {
         async () => {
           const ids = choices.map((modelId) => qualifyModelId(this.config, modelId)).filter((qualified) => selected.has(qualified));
           if (isFallback) {
-            this.config.agents.defaults.model.fallback = ids;
-            await this.saveAndRefresh('updated agents.defaults.model.fallback');
+            this.config.agents.defaults.model.fallbacks = ids;
+            await this.saveAndRefresh('updated agents.defaults.model.fallbacks');
           } else {
             setDefaultModels(this.config, ids);
             this.pruneDefaultsToModels();
@@ -1016,7 +1011,7 @@ async function startOpenClawTUI(options = {}) {
         const toolCount = Array.isArray(result.toolCalls) ? result.toolCalls.length : 0;
         const hasUsage = Boolean(result.finalResponse && typeof result.finalResponse === 'object' && result.finalResponse.usage);
         const colorStatus = (status) => (status === 200 ? green(String(status)) : String(status));
-        const usage = result.finalResponse?.usage? result.finalResponse.usage : ' no-usage ';
+        const usage = result.finalResponse?.usage ? result.finalResponse.usage : ' no-usage ';
         const responseDetail = result.apiSchema === 'anthropic-messages'
           ? {
               stop_reason: result.finalResponse?.stop_reason,
@@ -1044,11 +1039,6 @@ async function startOpenClawTUI(options = {}) {
     }
     markModelTestSuccess(providerName, modelId) {
       this.setModelTestStatus(providerName, modelId, 200);
-      const provider = this.config.models?.providers?.[providerName];
-      if (!provider) return;
-      const model = providerModels(provider).find((item) => item.id === modelId);
-      if (!model) return;
-      model.testStatus = 200;
     }
     async saveAndRefresh(message) {
       saveConfig(configPath, this.config);

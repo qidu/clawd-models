@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { DEFAULT_CONFIG_PATH, ensureConfigShape, getDefaultModelIds, loadConfig, providerEntries, resolveConfigPath } = require('../src/openclaw-config');
+const { DEFAULT_CONFIG_PATH, ensureConfigShape, loadConfig, providerEntries, resolveConfigPath } = require('../src/openclaw-config');
 
 function providerModels(provider) {
   return Array.isArray(provider?.models) ? provider.models : [];
@@ -143,11 +143,19 @@ async function runListModels() {
     return;
   }
 
+  const primary = config.agents?.defaults?.model?.primary;
+  const fallbacks = config.agents?.defaults?.model?.fallbacks;
+  const fallbackSet = new Set(Array.isArray(fallbacks) ? fallbacks : fallbacks ? [fallbacks] : []);
+
   console.log('Configured Models:\n');
   for (const { providerName, model } of models) {
     const ctx = model.contextWindow !== undefined ? `ctx ${formatTokenCount(model.contextWindow)}` : '';
     const max = model.maxTokens !== undefined ? `max ${formatTokenCount(model.maxTokens)}` : '';
-    console.log(`- ${providerName}/${model.id}  ${[ctx, max].filter(Boolean).join('  ')}`);
+    const tags = [];
+    if (`${providerName}/${model.id}` === primary) tags.push('primary');
+    if (fallbackSet.has(`${providerName}/${model.id}`)) tags.push('fallback');
+    const tagStr = tags.length > 0 ? `  [${tags.join(', ')}]` : '';
+    console.log(`- ${providerName}/${model.id}  ${[ctx, max].filter(Boolean).join('  ')}${tagStr}`);
   }
 }
 
