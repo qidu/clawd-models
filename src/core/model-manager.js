@@ -258,27 +258,27 @@ class ModelManager {
       reasoning: data.reasoning !== undefined ? !!data.reasoning : existingModel.reasoning
     };
 
-    // Validate costs if provided
-    if (data.inputCost !== undefined) {
+    // Validate costs if provided and not empty (empty = keep existing)
+    if (data.inputCost !== undefined && data.inputCost !== '') {
       updatedModel.cost.input = this.validateCost(data.inputCost, 'input cost');
     }
-    if (data.outputCost !== undefined) {
+    if (data.outputCost !== undefined && data.outputCost !== '') {
       updatedModel.cost.output = this.validateCost(data.outputCost, 'output cost');
     }
-    if (data.cacheRead !== undefined) {
+    if (data.cacheRead !== undefined && data.cacheRead !== '') {
       updatedModel.cost.cacheRead = this.validateCost(data.cacheRead, 'cache read cost');
     }
-    if (data.cacheWrite !== undefined) {
+    if (data.cacheWrite !== undefined && data.cacheWrite !== '') {
       updatedModel.cost.cacheWrite = this.validateCost(data.cacheWrite, 'cache write cost');
     }
 
-    // Validate context window if provided
-    if (data.contextWindow !== undefined) {
+    // Validate context window if provided and not empty (empty = keep existing)
+    if (data.contextWindow !== undefined && data.contextWindow !== '') {
       updatedModel.contextWindow = this.validateContextWindow(data.contextWindow);
     }
 
-    // Validate max tokens if provided
-    if (data.maxTokens !== undefined) {
+    // Validate max tokens if provided and not empty (empty = keep existing)
+    if (data.maxTokens !== undefined && data.maxTokens !== '') {
       updatedModel.maxTokens = this.validateMaxTokens(data.maxTokens);
     }
 
