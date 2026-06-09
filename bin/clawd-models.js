@@ -1,7 +1,39 @@
 #!/usr/bin/env node
 
-const { DEFAULT_CONFIG_PATH, ensureConfigShape, getDefaultModelIds, loadConfig, providerEntries, providerModels, resolveConfigPath } = require('../src/openclaw-config');
+const { DEFAULT_CONFIG_PATH, ensureConfigShape, getDefaultModelIds, loadConfig, providerEntries, resolveConfigPath } = require('../src/openclaw-config');
+
+function providerModels(provider) {
+  return Array.isArray(provider?.models) ? provider.models : [];
+}
+function formatTokenCount(value) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}m`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(value);
+}
 const { startOpenClawTUI, testModelDirect } = require('../src/openclaw-tui');
+
+function resolveModelRef(config, ref) {
+  if (!ref) return null;
+  const value = String(ref);
+  if (value.includes('/')) {
+    const [providerName, ...parts] = value.split('/');
+    const modelId = parts.join('/');
+    if (!providerName || !modelId) return null;
+    return { providerName, modelId, fullId: value };
+  }
+  const matches = [];
+  for (const [providerName, provider] of providerEntries(config)) {
+    for (const model of providerModels(provider)) {
+      if (model.id === value) matches.push({ providerName, modelId: model.id });
+    }
+  }
+  if (matches.length === 0) return null;
+  if (matches.length === 1) {
+    const m = matches[0];
+    return { ...m, fullId: `${m.providerName}/${m.modelId}` };
+  }
+  return { ambiguous: true, matches };
+}
 
 function printHelp() {
   console.log(`
@@ -42,14 +74,19 @@ async function runTest() {
     process.exit(1);
   }
 
-  const [providerName, ...modelParts] = String(primary).split('/');
-  const modelId = modelParts.join('/');
-  if (!providerName || !modelId) {
-    console.error('Error: Primary model must be in provider/model-id format.');
+  const resolved = resolveModelRef(config, primary);
+  if (!resolved) {
+    console.error(`Error: Model "${primary}" not found in any provider.`);
     process.exit(1);
   }
+  if (resolved.ambiguous) {
+    const options = resolved.matches.map((m) => `${m.providerName}/${m.modelId}`).join(', ');
+    console.error(`Error: Model "${primary}" is ambiguous across providers. Use one of: ${options}`);
+    process.exit(1);
+  }
+  const { providerName, modelId, fullId } = resolved;
 
-  console.log(`Testing primary model: ${primary}\n`);
+  console.log(`Testing primary model: ${fullId}\n`);
 
   try {
     const result = await testModelDirect(config, providerName, modelId, 'say hi');
@@ -108,12 +145,9 @@ async function runListModels() {
 
   console.log('Configured Models:\n');
   for (const { providerName, model } of models) {
-    console.log(`- ${providerName}/${model.id}`);
-    console.log(`  Name: ${model.name || ''}`);
-    console.log(`  Context: ${model.contextWindow ?? ''}`);
-    console.log(`  Max Tokens: ${model.maxTokens ?? ''}`);
-    console.log(`  Reasoning: ${model.reasoning === true ? 'true' : model.reasoning === false ? 'false' : ''}`);
-    console.log();
+    const ctx = model.contextWindow !== undefined ? `ctx ${formatTokenCount(model.contextWindow)}` : '';
+    const max = model.maxTokens !== undefined ? `max ${formatTokenCount(model.maxTokens)}` : '';
+    console.log(`- ${providerName}/${model.id}  ${[ctx, max].filter(Boolean).join('  ')}`);
   }
 }
 

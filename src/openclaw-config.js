@@ -143,6 +143,40 @@ function removeModelReferences(config, modelId) {
   }
 }
 
+function qualifyModelId(config, modelId) {
+  if (modelId === undefined || modelId === null) return '';
+  const value = String(modelId);
+  if (!value) return value;
+  if (value.includes('/')) {
+    const [providerName, ...parts] = value.split('/');
+    const inner = parts.join('/');
+    if (providerName && inner && config?.models?.providers?.[providerName]) {
+      const provider = config.models.providers[providerName];
+      if ((provider.models || []).some((m) => m.id === inner)) {
+        return value;
+      }
+    }
+    return value;
+  }
+  let onlyProvider = null;
+  let count = 0;
+  for (const [providerName, provider] of providerEntries(config || {})) {
+    for (const model of provider.models || []) {
+      if (model.id === value) {
+        onlyProvider = providerName;
+        count += 1;
+      }
+    }
+  }
+  if (count === 1 && onlyProvider) return `${onlyProvider}/${value}`;
+  return value;
+}
+
+function qualifyModelIds(config, ids) {
+  if (!Array.isArray(ids)) return [];
+  return ids.map((id) => qualifyModelId(config, id));
+}
+
 module.exports = {
   DEFAULT_CONFIG_PATH,
   resolveConfigPath,
@@ -160,4 +194,6 @@ module.exports = {
   setDefaultModelChoice,
   renameModelReferences,
   removeModelReferences,
+  qualifyModelId,
+  qualifyModelIds,
 };
