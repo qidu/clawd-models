@@ -67,7 +67,7 @@ function providerModels(provider) {
 function ensureProvider(config, providerName) {
   config.models ??= {};
   config.models.providers ??= {};
-  config.models.providers[providerName] ??= { baseUrl: '', apiKey: '', apiSchema: 'anthropic-messages', models: [] };
+  config.models.providers[providerName] ??= { baseUrl: '', apiKey: '', api: 'anthropic-messages', models: [] };
   const provider = config.models.providers[providerName];
   provider.models ??= [];
   return provider;
@@ -86,7 +86,8 @@ function availableModelList(config) {
   return getAvailableModelIds(config);
 }
 function formatProviderSummary(provider) {
-  return [provider.baseUrl || 'no baseUrl'].filter(Boolean).join('  ');
+  const api = provider.api || '';
+  return [api, provider.baseUrl || 'no baseUrl'].filter(Boolean).join('  ');
 }
 function formatTokenCount(value) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}m`;
@@ -119,7 +120,7 @@ async function testModelDirect(config, providerName, modelId, prompt = 'say hi')
   if (!model) throw new Error(`Model "${modelId}" not found in provider "${providerName}"`);
   if (!provider.baseUrl) throw new Error(`Provider "${providerName}" has no baseUrl`);
 
-  const apiSchema = provider.apiSchema || 'anthropic-messages';
+  const apiSchema = provider.api || 'anthropic-messages';
   const apiKey = provider.apiKey || '';
   const sampleTool = {
     name: 'say_hi',
@@ -704,7 +705,8 @@ async function startOpenClawTUI(options = {}) {
       this.openPrompt(`Add model to ${providerName}`, 'Enter model id', '', async (value) => {
         const id = value.trim();
         if (!id) return;
-        provider.models.push({ id, name: '', reasoning: false });
+        const name = id.replace(/\s+/g, '').replace(/^./, (c) => c.toUpperCase());
+        provider.models.push({ id, name, api: 'openai-completions', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
         await this.saveAndRefresh(`added model ${id}`);
         this.view.focusSelection((selection) => selection.kind === 'model' && selection.providerName === providerName && selection.modelId === id);
       });
@@ -713,20 +715,20 @@ async function startOpenClawTUI(options = {}) {
       const renderProviderEditor = () => {
         const provider = ensureProvider(this.config, providerName);
         const items = [
-          { value: 'apiSchema', label: 'apiSchema', description: provider.apiSchema || 'anthropic-messages' },
+          { value: 'api', label: 'api', description: provider.api || 'anthropic-messages' },
           { value: 'baseUrl', label: 'baseUrl', description: provider.baseUrl || '(empty)' },
           { value: 'apiKey', label: 'apiKey', description: provider.apiKey ? '(set)' : '(empty)' },
         ];
         this.openSelect(`Provider ${providerName}`, 'Choose a field', items, (field) => {
           const currentProvider = ensureProvider(this.config, providerName);
-          if (field === 'apiSchema') {
-            this.openSelect('Select apiSchema', `Press ${kbdItem('Enter', 'to choose and save it for this provider')}`, [
+          if (field === 'api') {
+            this.openSelect('Select api', `Press ${kbdItem('Enter', 'to choose and save it for this provider')}`, [
               { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
               { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
             ], async (value) => {
-              currentProvider.apiSchema = value;
+              currentProvider.api = value;
               saveConfig(configPath, this.config);
-              this.view.setMessage(`saved ${providerName} apiSchema = ${value}`);
+              this.view.setMessage(`saved ${providerName} api = ${value}`);
               this.requestRender();
               setTimeout(renderProviderEditor, 0);
             });
@@ -754,71 +756,180 @@ async function startOpenClawTUI(options = {}) {
       const provider = ensureProvider(this.config, providerName);
       const model = findModel(provider, modelId);
       if (!model) throw new Error(`Model "${modelId}" not found in provider "${providerName}"`);
-      const items = [
-        { value: 'test', label: 'test model', description: 'Run sample prompt + tool call' },
-        { value: 'id', label: 'id', description: model.id || '(empty)' },
-        { value: 'name', label: 'name', description: model.name || '(empty)' },
-        { value: 'contextWindow', label: 'contextWindow', description: model.contextWindow !== undefined ? String(model.contextWindow) : '(empty)' },
-        { value: 'maxTokens', label: 'maxTokens', description: model.maxTokens !== undefined ? String(model.maxTokens) : '(empty)' },
-        { value: 'reasoning', label: 'reasoning', description: model.reasoning === true ? 'true' : model.reasoning === false ? 'false' : '(empty)' },
-      ];
-      this.openSelect(`Model ${providerName}/${modelId}`, 'Choose a field', items, (field) => {
-        if (field === 'id') {
-          this.openPrompt('Edit model id', 'Enter model id', model.id || '', async (value) => {
-            const nextId = value.trim();
-            if (!nextId) throw new Error('Model id is required');
-            const existing = provider.models.find((item) => item !== model && item.id === nextId);
-            if (existing) throw new Error(`Model "${nextId}" already exists in provider "${providerName}"`);
-            const oldId = model.id;
-            model.id = nextId;
-            renameModelReferences(this.config, oldId, nextId);
-            await this.saveAndRefresh(`updated ${providerName}/${nextId} id`);
-            this.view.focusSelection((selection) => selection.kind === 'model' && selection.providerName === providerName && selection.modelId === nextId);
-          });
-          return;
-        }
-        if (field === 'name') {
-          this.openPrompt('Edit model name', 'Enter display name', model.name || '', async (value) => {
-            const next = value.trim();
-            model.name = next;
-            await this.saveAndRefresh(`updated ${providerName}/${model.id} name`);
-          });
-          return;
-        }
-        if (field === 'contextWindow') {
-          this.openPrompt('Edit contextWindow', 'Enter number or blank', model.contextWindow !== undefined ? String(model.contextWindow) : '', async (value) => {
-            const next = parseNumberOrBlank(value);
-            if (next === undefined) delete model.contextWindow;
-            else model.contextWindow = next;
-            await this.saveAndRefresh(`updated ${providerName}/${model.id} contextWindow`);
-          });
-          return;
-        }
-        if (field === 'maxTokens') {
-          this.openPrompt('Edit maxTokens', 'Enter number or blank', model.maxTokens !== undefined ? String(model.maxTokens) : '', async (value) => {
-            const next = parseNumberOrBlank(value);
-            if (next === undefined) delete model.maxTokens;
-            else model.maxTokens = next;
-            await this.saveAndRefresh(`updated ${providerName}/${model.id} maxTokens`);
-          });
-          return;
-        }
-        if (field === 'reasoning') {
-          this.openSelect('Edit reasoning', 'Choose value', [
-            { value: 'true', label: 'true', description: 'Enable reasoning' },
-            { value: 'false', label: 'false', description: 'Disable reasoning' },
-            { value: 'unset', label: 'unset', description: 'Remove the field' },
-          ], async (value) => {
-            if (value === 'unset') delete model.reasoning;
-            else model.reasoning = value === 'true';
-            await this.saveAndRefresh(`updated ${providerName}/${model.id} reasoning`);
-          });
-          return;
-        }
-        if (field === 'test') {
-          void this.runModelTest(providerName, model.id);
-        }
-      });
+
+      const app = this;
+      function getModelItems() {
+        return [
+          { value: 'test', label: 'test model', description: 'Run sample prompt + tool call' },
+          { value: 'id', label: 'id', description: model.id || '(empty)' },
+          { value: 'name', label: 'name', description: model.name || '(empty)' },
+          { value: 'api', label: 'api', description: model.api || 'openai-completions (default)' },
+          { value: 'contextWindow', label: 'contextWindow', description: model.contextWindow !== undefined ? String(model.contextWindow) : '(empty)' },
+          { value: 'maxTokens', label: 'maxTokens', description: model.maxTokens !== undefined ? String(model.maxTokens) : '(empty)' },
+          { value: 'input', label: 'input', description: Array.isArray(model.input) && model.input.length > 0 ? model.input.join(', ') : 'text (default)' },
+          { value: 'reasoning', label: 'reasoning', description: model.reasoning === true ? 'true' : model.reasoning === false ? 'false' : '(empty)' },
+          { value: 'inputCost', label: 'cost.input', description: model.cost?.input !== undefined ? String(model.cost.input) : '0' },
+          { value: 'outputCost', label: 'cost.output', description: model.cost?.output !== undefined ? String(model.cost.output) : '0' },
+          { value: 'cacheReadCost', label: 'cost.cacheRead', description: model.cost?.cacheRead !== undefined ? String(model.cost.cacheRead) : '0' },
+          { value: 'cacheWriteCost', label: 'cost.cacheWrite', description: model.cost?.cacheWrite !== undefined ? String(model.cost.cacheWrite) : '0' },
+        ];
+      }
+
+      function renderEditor() {
+        app.openSelect(`Model ${providerName}/${model.id}`, `Choose a field  ${dim('Esc to close')}`, getModelItems(), (field) => {
+          if (field === 'id') {
+            app.openPrompt('Edit model id', 'Enter model id', model.id || '', async (value) => {
+              const nextId = value.trim();
+              if (!nextId) throw new Error('Model id is required');
+              const existing = provider.models.find((item) => item !== model && item.id === nextId);
+              if (existing) throw new Error(`Model "${nextId}" already exists in provider "${providerName}"`);
+              const oldId = model.id;
+              model.id = nextId;
+              if (!model.name) {
+                model.name = nextId.replace(/\s+/g, '').replace(/^./, (c) => c.toUpperCase());
+              }
+              renameModelReferences(app.config, oldId, nextId);
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'name') {
+            app.openPrompt('Edit model name', 'Enter display name (auto from id if empty)', model.name || '', async (value) => {
+              const next = value.trim();
+              model.name = next || model.id.replace(/\s+/g, '').replace(/^./, (c) => c.toUpperCase());
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'contextWindow') {
+            app.openPrompt('Edit contextWindow', 'Enter number or blank', model.contextWindow !== undefined ? String(model.contextWindow) : '', async (value) => {
+              const next = parseNumberOrBlank(value);
+              if (next === undefined) delete model.contextWindow;
+              else model.contextWindow = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'maxTokens') {
+            app.openPrompt('Edit maxTokens', 'Enter number or blank', model.maxTokens !== undefined ? String(model.maxTokens) : '', async (value) => {
+              const next = parseNumberOrBlank(value);
+              if (next === undefined) delete model.maxTokens;
+              else model.maxTokens = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'reasoning') {
+            app.openSelect('Edit reasoning', 'Choose value', [
+              { value: 'true', label: 'true', description: 'Enable reasoning' },
+              { value: 'false', label: 'false', description: 'Disable reasoning' },
+              { value: 'unset', label: 'unset', description: 'Remove the field' },
+            ], async (value) => {
+              if (value === 'unset') delete model.reasoning;
+              else model.reasoning = value === 'true';
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'api') {
+            app.openSelect('Edit api', 'Choose API type', [
+              { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions API' },
+              { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages API' },
+            ], async (value) => {
+              model.api = value;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'input') {
+            const currentInput = Array.isArray(model.input) ? model.input : ['text'];
+            const selected = new Set(currentInput);
+            const inputItems = [
+              { value: 'text', label: 'text', description: selected.has('text') ? green('[x]') : dim('[ ]') },
+              { value: 'image', label: 'image', description: selected.has('image') ? green('[x]') : dim('[ ]') },
+              { value: 'audio', label: 'audio', description: selected.has('audio') ? green('[x]') : dim('[ ]') },
+              { value: 'video', label: 'video', description: selected.has('video') ? green('[x]') : dim('[ ]') },
+            ];
+            app.openSelect('Edit input', `${kbdItem('Space', 'to toggle')}  ${kbdItem('Enter', 'to save')}`, inputItems, async () => {
+              if (selected.size === 0) selected.add('text');
+              model.input = [...selected];
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            }, async (data, selectedItem) => {
+              if (!selectedItem) return false;
+              if (matchesKey(data, 'space')) {
+                const key = selectedItem.value;
+                if (selected.has(key)) {
+                  if (selected.size > 1 || key !== 'text') selected.delete(key);
+                } else {
+                  selected.add(key);
+                }
+                // Update descriptions on the same objects
+                selectedItem.description = selected.has(key) ? green('[x]') : dim('[ ]');
+                app.requestRender();
+                return true;
+              }
+              return false;
+            });
+            return;
+          }
+          if (field === 'inputCost') {
+            app.openPrompt('Edit cost.input', 'Enter number or blank', model.cost?.input !== undefined ? String(model.cost.input) : '0', async (value) => {
+              const next = parseNumberOrBlank(value);
+              model.cost ??= {};
+              if (next === undefined) delete model.cost.input;
+              else model.cost.input = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'outputCost') {
+            app.openPrompt('Edit cost.output', 'Enter number or blank', model.cost?.output !== undefined ? String(model.cost.output) : '0', async (value) => {
+              const next = parseNumberOrBlank(value);
+              model.cost ??= {};
+              if (next === undefined) delete model.cost.output;
+              else model.cost.output = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'cacheReadCost') {
+            app.openPrompt('Edit cost.cacheRead', 'Enter number or blank', model.cost?.cacheRead !== undefined ? String(model.cost.cacheRead) : '0', async (value) => {
+              const next = parseNumberOrBlank(value);
+              model.cost ??= {};
+              if (next === undefined) delete model.cost.cacheRead;
+              else model.cost.cacheRead = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'cacheWriteCost') {
+            app.openPrompt('Edit cost.cacheWrite', 'Enter number or blank', model.cost?.cacheWrite !== undefined ? String(model.cost.cacheWrite) : '0', async (value) => {
+              const next = parseNumberOrBlank(value);
+              model.cost ??= {};
+              if (next === undefined) delete model.cost.cacheWrite;
+              else model.cost.cacheWrite = next;
+              saveConfig(configPath, app.config);
+              setTimeout(renderEditor, 0);
+            });
+            return;
+          }
+          if (field === 'test') {
+            void app.runModelTest(providerName, model.id);
+          }
+        });
+      }
+
+      renderEditor();
     }
     openDefaultsModelsEditor() {
       ensureDefaults(this.config);
@@ -1002,6 +1113,14 @@ async function startOpenClawTUI(options = {}) {
       this.overlay.focus();
     }
     async runModelTest(providerName, modelId) {
+      // Check if model has 'text' input type
+      const provider = this.config.models?.providers?.[providerName];
+      const model = provider?.models?.find((m) => m.id === modelId);
+      if (!model || !Array.isArray(model.input) || !model.input.includes('text')) {
+        this.view.setMessage(`Model "${providerName}/${modelId}" requires 'text' input type for testing`);
+        this.requestRender();
+        return;
+      }
       const prompt = 'say hi';
       this.clearModelTestStatus(providerName, modelId);
       this.view.setMessage(`testing ${providerName}/${modelId}...`);

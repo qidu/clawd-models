@@ -81,17 +81,91 @@ The `▶` cursor indicates the currently selected row. Navigation order follows 
 ### Providers
 
 - Add a new provider (`P`).
-- Edit a provider's `apiSchema`, `baseUrl`, and `apiKey`.
+- Edit a provider's `baseUrl`, `api`, `auth`, and `apiKey`.
 - Browse the providers list with their base URLs.
 - Delete a provider (`D` with a provider row selected — requires typing the provider name to confirm).
+
+### Provider Schema
+
+```json
+{
+  "models": {
+    "providers": {
+      "<provider-name>": {
+        "baseUrl": "https://api.example.com/v1",
+        "api": "openai-completions",
+        "auth": "api-key",
+        "apiKey": "sk-..."
+      }
+    }
+  }
+}
+```
+
+**Provider fields:**
+
+| Field | Type | Description | Default |
+| --- | --- | --- | --- |
+| `baseUrl` | string | API base URL | required |
+| `api` | string | API type: `openai-completions` or `anthropic-messages` | `openai-completions` |
+| `auth` | string | Auth method: `api-key` or `bearer` | `api-key` |
+| `apiKey` | string | API key or bearer token | (optional) |
 
 ### Models
 
 - Add a model to the current provider (`M` with a provider row highlighted).
-- Edit model `id`, `name`, `contextWindow`, `maxTokens`, and `reasoning` flag.
+- Edit model `id`, `name`, `api`, `input` types, `reasoning` flag, `cost`, `contextWindow`, and `maxTokens`.
 - Run a sample prompt + tool call against a model to verify connectivity (`T`). A green `●` marks successful models; the marker is cleared when a new test starts and reappears on success.
 - Delete a model (`D` with a model row selected — type "yes" to confirm).
 - Token counts are shown compactly: `ctx 262k  max 8k` (≥1K → `Nk`, ≥1M → `Nm`).
+
+### Model Schema
+
+When adding or editing a model, the following fields are saved to the config:
+
+```json
+{
+  "models": {
+    "providers": {
+      "<provider-name>": {
+        "models": [
+          {
+            "id": "model-id",
+            "name": "Display Name",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+**Model fields:**
+
+| Field | Type | Description | Default |
+| --- | --- | --- | --- |
+| `id` | string | Model identifier used in API calls | required |
+| `name` | string | Display name shown in TUI | required |
+| `api` | string | API type: `openai-completions` or `anthropic-messages` | `openai-completions` |
+| `reasoning` | boolean | Whether the model has reasoning capability | `false` |
+| `input` | array | Supported input types: `text`, `image`, `audio`, `video` | `["text"]` |
+| `cost.input` | number | Input cost per 1M tokens | `0` |
+| `cost.output` | number | Output cost per 1M tokens | `0` |
+| `cost.cacheRead` | number | Cache read cost per 1M tokens | `0` |
+| `cost.cacheWrite` | number | Cache write cost per 1M tokens | `0` |
+| `contextWindow` | number | Maximum context window size in tokens | `200000` |
+| `maxTokens` | number | Maximum output tokens | `8192` |
 
 ### Agents Defaults (`A`)
 
@@ -123,6 +197,66 @@ The TUI manages the OpenClaw configuration at:
 ```
 
 Override the path with `OPENCLAW_CONFIG_PATH=/some/other/path`.
+
+## Config Schema
+
+The full config file structure managed by the TUI:
+
+```json
+{
+  "meta": {
+    "lastTouchedVersion": "2026.2.10",
+    "lastTouchedAt": "2026-02-09T04:36:41.216Z"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "<provider-name>": {
+        "baseUrl": "https://api.example.com/v1",
+        "api": "openai-completions",
+        "auth": "api-key",
+        "apiKey": "sk-...",
+        "models": [
+          {
+            "id": "model-id",
+            "name": "Display Name",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "provider/model-id"
+      },
+      "models": {}
+    },
+    "list": []
+  }
+}
+```
+
+**Fields modified by the TUI:**
+
+| Section | Fields |
+| --- | --- |
+| `models.providers` | Add/Edit/Remove providers with `baseUrl`, `api`, `auth`, `apiKey` |
+| `models.providers[].models` | Add/Edit/Remove models with all model fields |
+| `agents.defaults.model.primary` | Set primary model |
+| `agents.defaults.models` | Set active model pool |
+| `meta` | Auto-updated on every save |
 
 ## Architecture
 

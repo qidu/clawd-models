@@ -135,6 +135,34 @@ class ModelsAddEditScreen {
       },
       {
         type: 'input',
+        name: 'cacheRead',
+        message: 'Cache read cost per 1M tokens (default: 0):',
+        default: '0',
+        validate: (input) => {
+          if (input === '' || input === '0') return true;
+          const num = parseFloat(input);
+          if (isNaN(num) || num < 0) {
+            return 'Cost must be a non-negative number';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'input',
+        name: 'cacheWrite',
+        message: 'Cache write cost per 1M tokens (default: 0):',
+        default: '0',
+        validate: (input) => {
+          if (input === '' || input === '0') return true;
+          const num = parseFloat(input);
+          if (isNaN(num) || num < 0) {
+            return 'Cost must be a non-negative number';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'input',
         name: 'contextWindow',
         message: 'Context window size (default: 200000):',
         default: '200000',
@@ -268,6 +296,34 @@ class ModelsAddEditScreen {
         name: 'outputCost',
         message: 'Output cost per 1M tokens:',
         default: modelDetails.cost.output.toString(),
+        validate: (input) => {
+          if (input === '') return true;
+          const num = parseFloat(input);
+          if (isNaN(num) || num < 0) {
+            return 'Cost must be a non-negative number';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'input',
+        name: 'cacheRead',
+        message: 'Cache read cost per 1M tokens:',
+        default: modelDetails.cost.cacheRead.toString(),
+        validate: (input) => {
+          if (input === '') return true;
+          const num = parseFloat(input);
+          if (isNaN(num) || num < 0) {
+            return 'Cost must be a non-negative number';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'input',
+        name: 'cacheWrite',
+        message: 'Cache write cost per 1M tokens:',
+        default: modelDetails.cost.cacheWrite.toString(),
         validate: (input) => {
           if (input === '') return true;
           const num = parseFloat(input);

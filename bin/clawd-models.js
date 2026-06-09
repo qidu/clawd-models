@@ -117,13 +117,19 @@ async function runListProviders() {
     return;
   }
 
+  // ANSI color codes
+  const bold = '\x1b[1m';
+  const white = '\x1b[37m';
+  const dim = '\x1b[2m';
+  const reset = '\x1b[0m';
+
   console.log('Configured Providers:\n');
   for (const [name, provider] of entries) {
-    console.log(`- ${name}`);
-    console.log(`  Base URL: ${provider.baseUrl || ''}`);
-    console.log(`  API Schema: ${provider.apiSchema || ''}`);
-    console.log(`  API Key: ${provider.apiKey ? 'set' : 'empty'}`);
-    console.log(`  Models: ${providerModels(provider).length}`);
+    console.log(`- ${bold}${white}${name}${reset}`);
+    console.log(`  ${dim}Base URL:${reset} ${white}${provider.baseUrl || ''}${reset}`);
+    console.log(`  ${dim}API Schema:${reset} ${white}${provider.api || ''}${reset}`);
+    console.log(`  ${dim}API Key:${reset} ${white}${provider.apiKey ? 'set' : 'empty'}${reset}`);
+    console.log(`  ${dim}Models:${reset} ${white}${providerModels(provider).length}${reset}`);
     console.log();
   }
 }
@@ -147,15 +153,33 @@ async function runListModels() {
   const fallbacks = config.agents?.defaults?.model?.fallbacks;
   const fallbackSet = new Set(Array.isArray(fallbacks) ? fallbacks : fallbacks ? [fallbacks] : []);
 
+  // ANSI color codes
+  const bold = '\x1b[1m';
+  const white = '\x1b[37m';
+  const dim = '\x1b[2m';
+  const reset = '\x1b[0m';
+
   console.log('Configured Models:\n');
   for (const { providerName, model } of models) {
-    const ctx = model.contextWindow !== undefined ? `ctx ${formatTokenCount(model.contextWindow)}` : '';
-    const max = model.maxTokens !== undefined ? `max ${formatTokenCount(model.maxTokens)}` : '';
+    const modelName = `${providerName}/${model.id}`;
+    const displayName = model.name || '';
+    const ctx = model.contextWindow !== undefined ? `${dim}ctx ${formatTokenCount(model.contextWindow)}${reset}` : '';
+    const max = model.maxTokens !== undefined ? `${dim}max ${formatTokenCount(model.maxTokens)}${reset}` : '';
     const tags = [];
-    if (`${providerName}/${model.id}` === primary) tags.push('primary');
-    if (fallbackSet.has(`${providerName}/${model.id}`)) tags.push('fallback');
-    const tagStr = tags.length > 0 ? `  [${tags.join(', ')}]` : '';
-    console.log(`- ${providerName}/${model.id}  ${[ctx, max].filter(Boolean).join('  ')}${tagStr}`);
+    if (modelName === primary) tags.push(`${dim}primary${reset}`);
+    if (fallbackSet.has(modelName)) tags.push(`${dim}fallback${reset}`);
+    const tagStr = tags.length > 0 ? ` [${tags.join(', ')}]` : '';
+    // Show cost values if any is non-zero (use '-' for undefined)
+    const cost = model.cost;
+    const inputCost = cost?.input !== undefined ? cost.input : '-';
+    const outputCost = cost?.output !== undefined ? cost.output : '-';
+    const cacheReadCost = cost?.cacheRead !== undefined ? cost.cacheRead : '-';
+    const cacheWriteCost = cost?.cacheWrite !== undefined ? cost.cacheWrite : '-';
+    const hasNonZero = (cost?.input && cost.input !== 0) || (cost?.output && cost.output !== 0) || (cost?.cacheRead && cost.cacheRead !== 0) || (cost?.cacheWrite && cost.cacheWrite !== 0);
+    const costStr = hasNonZero ? ` ${dim}[${inputCost}/${outputCost}/${cacheReadCost}/${cacheWriteCost}]${reset}` : '';
+    // Name as last item
+    const nameStr = displayName ? `  ${dim}${displayName}${reset}` : '';
+    console.log(`- ${bold}${white}${modelName}${reset}  ${[ctx, max].filter(Boolean).join('  ')}${costStr}${tagStr}${nameStr}`);
   }
 }
 
