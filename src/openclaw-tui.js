@@ -10,7 +10,7 @@ function writeDebugLog(...parts) {
 let piTuiPromise = null;
 async function loadPiTui() {
   if (!piTuiPromise) {
-    piTuiPromise = import('@mariozechner/pi-tui');
+    piTuiPromise = import('@earendil-works/pi-tui');
   }
   return piTuiPromise;
 }
