@@ -2,13 +2,13 @@
 
 Terminal UI for managing the model configuration used by [OpenClaw](https://github.com/openclaw/openclaw).
 
-The TUI is built on [@mariozechner/pi-tui](https://www.npmjs.com/package/@mariozechner/pi-tui) and reads/writes a single JSON file at `~/.openclaw/openclaw.json`.
+The TUI is built on [@earendil-works/pi-tui](https://www.npmjs.com/package/@earendil-works/pi-tui) and reads/writes a single JSON file at `~/.openclaw/openclaw.json`.
 
 ![TUI Interface](https://raw.githubusercontent.com/qidu/clawd-models/refs/heads/main/docs/setup-flow.svg)
 
 ## Prerequisite
 
-Install and configure `openclaw` first:
+Install and initialize `openclaw`'s config firstly:
 
 ```bash
 openclaw setup
@@ -61,7 +61,6 @@ In the agents.defaults submenu (`A`):
 
 - `Enter` to edit the highlighted field
 - `Space` to toggle items inside the **models** and **fallbacks** multi-select pickers
-- `P` / `B` / `O` on a model row in the primary picker to set as primary, push to fallback, or unset
 
 ## Screen Layout
 
