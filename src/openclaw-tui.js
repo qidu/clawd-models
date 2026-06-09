@@ -34,6 +34,15 @@ function pad(visibleWidth, clipFn, text, width) {
 function formatList(values) {
   return (values || []).join(', ');
 }
+function fallbackList(config) {
+  const value = config?.agents?.defaults?.model?.fallback;
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
+}
+function kbdItem(key, desc) {
+  return desc ? `${key} ${dim(desc)}` : key;
+}
 function splitList(value) {
   return String(value || '')
     .split(',')
@@ -79,11 +88,16 @@ function availableModelList(config) {
 function formatProviderSummary(provider) {
   return [provider.baseUrl || 'no baseUrl'].filter(Boolean).join('  ');
 }
+function formatTokenCount(value) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}m`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(value);
+}
 function formatModelSummary(model) {
   return [
 //    model.name || '-',
-    model.contextWindow !== undefined ? `ctx ${model.contextWindow}` : '',
-    model.maxTokens !== undefined ? `max ${model.maxTokens}` : '',
+    model.contextWindow !== undefined ? `ctx ${formatTokenCount(model.contextWindow)}` : '',
+    model.maxTokens !== undefined ? `max ${formatTokenCount(model.maxTokens)}` : '',
 //    model.reasoning === true ? 'reasoning' : model.reasoning === false ? 'no reasoning' : '',
   ].filter(Boolean).join('  ');
 }
@@ -413,8 +427,7 @@ async function startOpenClawTUI(options = {}) {
       const defaults = this.config.agents?.defaults || {};
       lines.push(`  models: ${dim(formatList(getDefaultModelIds(this.config))) || dim('(empty)')}`);
       lines.push(`  primary: ${defaults.model?.primary || dim('(empty)')}`);
-      const fallback = Array.isArray(defaults.model?.fallback) ? defaults.model.fallback : [];
-      lines.push(`  fallback: ${formatList(fallback) || dim('(empty)')}`);
+      lines.push(`  fallbacks: ${formatList(fallbackList(this.config)) || dim('(empty)')}`);
       lines.push(dim('  D to define agents.defaults'));
       lines.push('');
       lines.push(bold('Providers'));
@@ -436,7 +449,15 @@ async function startOpenClawTUI(options = {}) {
       }
       lines.push('');
       lines.push(bold('Help'));
-      lines.push(dim('  Enter/E edit  A add provider  M add model T test model  R reload  ↑↓/j/k move  q/Ctrl+C quit'));
+      lines.push('  ' + [
+        kbdItem('Enter/E', 'edit'),
+        kbdItem('A', 'add provider'),
+        kbdItem('M', 'add model'),
+        kbdItem('T', 'test model'),
+        kbdItem('R', 'reload'),
+        kbdItem('↑↓/j/k', 'move'),
+        kbdItem('q/Ctrl+C', 'quit'),
+      ].join('  '));
       lines.push(this.message ? yellow(this.message) : dim('Ready'));
       return lines.map((line) => clip(truncateToWidth, line, width));
     }
@@ -509,17 +530,14 @@ async function startOpenClawTUI(options = {}) {
     openAgentDefaultsEditor() {
       ensureDefaults(this.config);
       const items = [
+        { value: 'models', label: 'models', description: formatList(getDefaultModelIds(this.config)) || '(empty)' },
         { value: 'primary', label: 'primary', description: this.config.agents.defaults.model?.primary || '(empty)' },
-        { value: 'fallback', label: 'fallback', description: formatList(Array.isArray(this.config.agents.defaults.model?.fallback) ? this.config.agents.defaults.model.fallback : []) || '(empty)' },
+        { value: 'fallback', label: 'fallback', description: formatList(fallbackList(this.config)) || '(empty)' },
       ];
-      this.openSelect('Agent defaults', 'Choose primary or fallback; use P/B on the model picker', items, (field) => {
-        if (field === 'primary') {
-          this.openDefaultChoiceEditor('primary');
-          return;
-        }
-        if (field === 'fallback') {
-          this.openDefaultChoiceEditor('fallback');
-        }
+      this.openSelect('Agent defaults', `Pick a field; ${kbdItem('Enter', 'to edit')}`, items, (field) => {
+        if (field === 'models') return this.openDefaultListEditor('models');
+        if (field === 'primary') return this.openDefaultChoiceEditor('primary');
+        if (field === 'fallback') return this.openDefaultListEditor('fallback');
       });
     }
     openAddProviderPrompt() {
@@ -552,7 +570,7 @@ async function startOpenClawTUI(options = {}) {
         this.openSelect(`Provider ${providerName}`, 'Choose a field', items, (field) => {
           const currentProvider = ensureProvider(this.config, providerName);
           if (field === 'apiSchema') {
-            this.openSelect('Select apiSchema', 'Press Enter to choose and save it for this provider', [
+            this.openSelect('Select apiSchema', `Press ${kbdItem('Enter', 'to choose and save it for this provider')}`, [
               { value: 'anthropic-messages', label: 'anthropic-messages', description: 'Anthropic messages' },
               { value: 'openai-completions', label: 'openai-completions', description: 'OpenAI completions' },
             ], async (value) => {
@@ -661,7 +679,9 @@ async function startOpenClawTUI(options = {}) {
     }
     openDefaultChoiceEditor(kind) {
       ensureDefaults(this.config);
-      const current = this.config.agents.defaults.model?.[kind] || '';
+      const current = kind === 'fallback'
+        ? new Set(fallbackList(this.config))
+        : new Set([this.config.agents.defaults.model?.[kind] || '']);
       const choices = availableModelList(this.config);
       if (choices.length === 0) {
         this.openPrompt(`Edit agents.defaults.model.${kind}`, 'Enter model id', current, async (value) => {
@@ -679,7 +699,7 @@ async function startOpenClawTUI(options = {}) {
           return {
             value: modelId,
             label: modelName ? `${providerName} / ${modelName}` : modelId,
-            description: modelId === current ? 'current' : '',
+            description: current.has(modelId) ? 'current' : '',
           };
         }),
         async (value) => {
@@ -720,12 +740,72 @@ async function startOpenClawTUI(options = {}) {
     }
     openDefaultFallbackEditor() {
       ensureDefaults(this.config);
-      const current = Array.isArray(this.config.agents.defaults.model?.fallback) ? this.config.agents.defaults.model.fallback : [];
+      const current = fallbackList(this.config);
       this.openPrompt('Edit agents.defaults.model.fallback', 'Comma-separated fallback model ids (ordered)', formatList(current), async (value) => {
         const ids = splitList(value);
         this.config.agents.defaults.model.fallback = ids;
         await this.saveAndRefresh('updated agents.defaults.model.fallback');
       });
+    }
+    openDefaultListEditor(field) {
+      ensureDefaults(this.config);
+      const isFallback = field === 'fallback';
+      const initialIds = isFallback ? fallbackList(this.config) : getDefaultModelIds(this.config);
+      const choices = availableModelList(this.config);
+      if (choices.length === 0) {
+        const title = isFallback ? 'Edit agents.defaults.model.fallback' : 'Edit agents.defaults.models';
+        const promptText = isFallback ? 'Comma-separated fallback model ids (ordered)' : 'Comma-separated model ids';
+        this.openPrompt(title, promptText, formatList(initialIds), async (value) => {
+          const ids = splitList(value);
+          if (isFallback) {
+            this.config.agents.defaults.model.fallback = ids;
+            await this.saveAndRefresh('updated agents.defaults.model.fallback');
+          } else {
+            setDefaultModels(this.config, ids);
+            await this.saveAndRefresh('updated agents.defaults.models');
+          }
+        });
+        return;
+      }
+      const selected = new Set(initialIds);
+      const title = isFallback ? 'Select agents.defaults.model.fallback' : 'Select agents.defaults.models';
+      const tag = isFallback ? 'in fallback' : 'in models';
+      const items = choices.map((modelId) => {
+        const [providerName, ...modelParts] = String(modelId).split('/');
+        const modelName = modelParts.join('/');
+        return {
+          value: modelId,
+          label: modelName ? `${providerName} / ${modelName}` : modelId,
+          description: selected.has(modelId) ? `[x] ${tag}` : '[ ] add',
+        };
+      });
+      this.openSelect(
+        title,
+        `${kbdItem('Space', 'to toggle,')} ${kbdItem('Enter', 'to save')}`,
+        items,
+        async () => {
+          const ids = choices.filter((modelId) => selected.has(modelId));
+          if (isFallback) {
+            this.config.agents.defaults.model.fallback = ids;
+            await this.saveAndRefresh('updated agents.defaults.model.fallback');
+          } else {
+            setDefaultModels(this.config, ids);
+            await this.saveAndRefresh('updated agents.defaults.models');
+          }
+        },
+        async (data, selectedItem) => {
+          if (!selectedItem) return false;
+          if (matchesKey(data, 'space')) {
+            const modelId = String(selectedItem.value);
+            if (selected.has(modelId)) selected.delete(modelId);
+            else selected.add(modelId);
+            selectedItem.description = selected.has(modelId) ? `[x] ${tag}` : '[ ] add';
+            this.requestRender();
+            return true;
+          }
+          return false;
+        }
+      );
     }
     openSelect(title, subtitle, items, onSelect, onKey) {
       this.closeOverlay();
@@ -772,7 +852,7 @@ async function startOpenClawTUI(options = {}) {
         const toolCount = Array.isArray(result.toolCalls) ? result.toolCalls.length : 0;
         const hasUsage = Boolean(result.finalResponse && typeof result.finalResponse === 'object' && result.finalResponse.usage);
         const colorStatus = (status) => (status === 200 ? green(String(status)) : String(status));
-        const usage = result.finalResponse?.usage;
+        const usage = result.finalResponse?.usage? result.finalResponse.usage : ' no-usage ';
         const responseDetail = result.apiSchema === 'anthropic-messages'
           ? {
               stop_reason: result.finalResponse?.stop_reason,
@@ -787,11 +867,9 @@ async function startOpenClawTUI(options = {}) {
         }
         const details = [
           `${result.endpoint}`,
-          `${colorStatus(hasUsage ? 200 : result.finalStatus)}`,
-          ...(usage ? [`${green(JSON.stringify(usage))}`] : []),
-          `tool_calls=${toolCount}`,
+          `${colorStatus(hasUsage ? 200 : result.finalStatus)} ${green(JSON.stringify(usage))} ${green('tool_calls=')}${dim(toolCount)}`,
         ];
-        if (responseDetail.usage || responseDetail.stop_reason !== undefined || responseDetail.finish_reason !== undefined) {
+        if (responseDetail.stop_reason !== undefined || responseDetail.finish_reason !== undefined) {
           details.push(`${green(JSON.stringify(responseDetail))}`);
         }
         this.view.setMessage(details.join('\n'));
