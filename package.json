@@ -1,7 +1,7 @@
 {
   "name": "clawd-models",
-  "version": "1.1.0",
-  "description": "TUI (Text User Interface) tool to manage OpenClaw model configurations",
+  "version": "1.2.0",
+  "description": "TUI (Text User Interface) config tool to manage OpenClaw models & providers",
   "main": "bin/clawd-models.js",
   "bin": {
     "clawd-models": "bin/clawd-models.js"
