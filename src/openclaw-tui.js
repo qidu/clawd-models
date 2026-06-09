@@ -443,8 +443,9 @@ async function startOpenClawTUI(options = {}) {
         for (const model of models) {
           const modelSelected = selected?.kind === 'model' && selected.providerName === providerName && selected.modelId === model.id;
           const mark = modelSelected ? green('>') : dim('·');
-          const testMark = model.testStatus === 200 ? ` ${green('●')}` : '';
-          lines.push(`  ${dim('│')} ${mark} ${model.id || 'model'}${testMark} ${dim(formatModelSummary(model))}`);
+          const testStatus = this.app.getModelTestStatus(providerName, model.id);
+          const testMark = testStatus === 200 ? ` ${green('●')}` : '';
+          lines.push(`  ${dim('│')} ${mark} ${model.id || 'model'} ${dim(formatModelSummary(model))}${testMark}`);
         }
       }
       lines.push('');
@@ -491,6 +492,23 @@ async function startOpenClawTUI(options = {}) {
       this.apiTester = new ApiTester({
         loadConfig: () => this.config,
       }, null, null);
+      this.testStatuses = new Map();
+    }
+    testStatusKey(providerName, modelId) {
+      return `${providerName}/${modelId}`;
+    }
+    setModelTestStatus(providerName, modelId, status) {
+      if (status === undefined || status === null) {
+        this.testStatuses.delete(this.testStatusKey(providerName, modelId));
+      } else {
+        this.testStatuses.set(this.testStatusKey(providerName, modelId), status);
+      }
+    }
+    getModelTestStatus(providerName, modelId) {
+      return this.testStatuses.get(this.testStatusKey(providerName, modelId));
+    }
+    clearModelTestStatus(providerName, modelId) {
+      this.testStatuses.delete(this.testStatusKey(providerName, modelId));
     }
     async start() {
       this.tui.addChild(this.view);
@@ -845,6 +863,7 @@ async function startOpenClawTUI(options = {}) {
     }
     async runModelTest(providerName, modelId) {
       const prompt = 'say hi';
+      this.clearModelTestStatus(providerName, modelId);
       this.view.setMessage(`testing ${providerName}/${modelId}...`);
       this.requestRender();
       try {
@@ -879,6 +898,7 @@ async function startOpenClawTUI(options = {}) {
       this.requestRender();
     }
     markModelTestSuccess(providerName, modelId) {
+      this.setModelTestStatus(providerName, modelId, 200);
       const provider = this.config.models?.providers?.[providerName];
       if (!provider) return;
       const model = providerModels(provider).find((item) => item.id === modelId);
