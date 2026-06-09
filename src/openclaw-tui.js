@@ -493,7 +493,7 @@ async function startOpenClawTUI(options = {}) {
         if (models.length === 0) lines.push(`    ${dim('(no models)')}`);
         for (const model of models) {
           const modelSelected = selected?.kind === 'model' && selected.providerName === providerName && selected.modelId === model.id;
-          const mark = modelSelected ? green('>') : dim('·');
+          const mark = modelSelected ? green('▶') : dim('•');
           const testStatus = this.app.getModelTestStatus(providerName, model.id);
           const testMark = testStatus === 200 ? ` ${green('●')}` : '';
           lines.push(`  ${dim('│')} ${mark} ${model.id || 'model'} ${dim(formatModelSummary(model))}${testMark}`);
